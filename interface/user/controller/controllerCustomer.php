@@ -165,17 +165,20 @@ switch ($action) {
     //  DELETE Customer
     // ----------------------------------------------------
     case 'deleteCustomer':
-        $id = (int)($_POST['id_pengguna'] ?? 0);
+        $id     = (int)($_POST['id_pengguna'] ?? 0);
+        $del_by = (int)($_SESSION['id_pengguna'] ?? 0);
         if (!$id) jsonOut(false, 'Invalid ID.');
 
-        $sql  = "UPDATE pengguna SET is_deleted = 1, deleted_date = GETDATE() WHERE id_pengguna = ? AND role = 0";
-        $stmt = sqlsrv_query($conn, $sql, [$id]);
+        $sql  = "UPDATE pengguna
+                 SET is_deleted = 1, deleted_date = GETDATE(), deleted_by = ?
+                 WHERE id_pengguna = ? AND role = 0";
+        $stmt = sqlsrv_query($conn, $sql, [$del_by, $id]);
 
         if (!$stmt) {
             jsonOut(false, 'Failed to delete record.');
         }
 
-        jsonOut(true, 'Customer soft-deleted successfully.');
+        jsonOut(true, 'Customer deleted successfully.');
         break;
 
     // ----------------------------------------------------
