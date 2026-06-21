@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buat Akun</title>
+    <link rel="stylesheet" href="/CardHaven/interface/global.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="/CardHaven/interface/register-page/script_register.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="image-wrap">
+                <img src="/CardHaven/assets/image/login-image.svg">
+            </div>
+
+            <div class="form-section">
+                <div class="form-container">
+                    <h1 class="coolvetica">Sign Up</h1>
+                    
+                    <div class="social-login">
+                        <button class="social-btn"><img src="https://img.icons8.com/color/48/000000/google-logo.png" alt="Google"></button>
+                        <button class="social-btn"><img src="https://img.icons8.com/ios-filled/50/000000/github.png" alt="Github"></button>
+                        <button class="social-btn"><img src="https://img.icons8.com/ios-filled/50/000000/mac-os.png" alt="Apple"></button>
+                    </div>
+
+                    <div class="divider">
+                        <span>Or</span>
+                    </div>
+
+                    <form id="signupForm">
+                        <div class="form-group">
+                            <label>Username<span class="required">*</span></label>
+                            <input type="text" name="username" placeholder="enter username...">
+                            <div id="usernameError" class="error-message"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Email<span class="required">*</span></label>
+                            <input type="email" name="email" placeholder="enter email...">
+                            <div id="emailError" class="error-message"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Password<span class="required">*</span></label>
+                            <input type="password" name="password" id="password" placeholder="enter password...">
+                            <div id="passwordError" class="error-message"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirm password<span class="required">*</span></label>
+                            <input type="password" name="confirm_password" id="confirm_password" placeholder="confirm password">
+                            <div id="confirmPasswordError" class="error-message"></div>
+                        </div>
+
+                        <button type="submit" class="btn-signup">Sign Up</button>
+                    </form>
+
+                    <p class="footer-text">Have an account? <span><a href="home" style="text-decoration: underline; color: #0088FF;">Log in</a></span></p>
+                    <p class="terms-text">By Proceeding you agree to our terms of use</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</body>
+</html>
