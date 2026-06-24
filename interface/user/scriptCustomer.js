@@ -473,7 +473,7 @@ async function resetCustPassword() {
         const data = await response.json();
 
         if (data.status === 'success') {
-            wal.fire({
+            Swal.fire({
                 icon: 'success',
                 iconColor: '#0088FF',
                 title: 'Success!',

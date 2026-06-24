@@ -69,7 +69,12 @@ switch ($action) {
         if (emailExists($conn, $email)) {
             jsonOut(false, 'This email address is already in use.', [], 'EMAIL_DUPLICATE');
         }
-
+        if (trim($password) === '' || strlen($password) < 8 || strlen($password) > 12) {
+        jsonOut(false, 'Password must be 8-12 characters long and cannot be blank/whitespace only.');
+        }
+        if (!preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password)) {
+        jsonOut(false, 'Password must contain at least one special character.');
+        }
         $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
         // Upload Foto Profil
