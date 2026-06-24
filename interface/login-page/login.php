@@ -65,10 +65,6 @@ try {
             session_start();
         }
 
-        $_SESSION['id_pengguna'] = $user['id_pengguna'];
-        $_SESSION['username']    = $user['username'];
-        $_SESSION['role']        = $user['role'];
-
         echo json_encode([
                             "status" => "success", 
                             "message" => "Login successful", 
