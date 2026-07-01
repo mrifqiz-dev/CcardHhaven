@@ -1,6 +1,7 @@
-<?php require 'apifetch.php'; ?>
+<?php 
+// 1. PERBAIKAN PATH: Gunakan __DIR__ agar file selalu ditemukan dari mana pun di-include
+require_once __DIR__ . '/apifetch.php'; 
 
-<?php
 $type = $_GET['type'] ?? 'sales';
 
 // Status mapping untuk PHP render (Khusus Sales)
@@ -28,10 +29,16 @@ $STATUS_COLOR = [
     8 => ['bg' => '#f3f4f6', 'color' => '#6b7280'],
 ];
 
-$activeStatus = $status; // dari apifetch.php
-$activeSearch = $search;
-?>
+// 2. PERBAIKAN VARIABEL: Ambil data dari variabel yang telah disiapkan apifetch.php
+$activeStatus = $status ?? null; 
+$activeSearch = $search ?? '';
 
+// Sesuaikan nama variabel untuk tabel HTML (karena kontroler baru memakai $data)
+$stmt_trx = $data ?? [];
+
+// Ambil jumlah angka per-status langsung dari controller yang sudah aktif di apifetch.php
+$count_status = isset($ctrl) ? $ctrl->countPerStatus() : [];
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -302,9 +309,9 @@ $activeSearch = $search;
                             <th>Order ID</th>
                             <th>Customer</th>
                             <th>Date</th>
+                            <th>Payment Metode</th>
                             <th>Items</th>
                             <th>Total</th>
-                            <th>Payment Metode</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -324,14 +331,14 @@ $activeSearch = $search;
                                         <div style="font-size:.73rem;opacity:.5;"><?= htmlspecialchars($row['email'] ?? '') ?></div>
                                     </td>
                                     <td style="white-space:nowrap;font-size:.82rem;"><?= htmlspecialchars($row['tanggal_penjualan'] ?? '-') ?></td>
-                                    <td style="text-align:center;"><?= (int)$row['total_barang'] ?></td>
-                                    <td style="text-align:right;font-weight:700;white-space:nowrap;">Rp <?= htmlspecialchars($row['total_harga']) ?></td>
                                     <td style="font-size:.8rem;">
                                         <?= htmlspecialchars($row['nama_metode'] ?? '-') ?>
                                         <?php if (!empty($row['provider'])): ?>
                                             <span style="opacity:.5;"> · <?= htmlspecialchars($row['provider']) ?></span>
                                         <?php endif; ?>
                                     </td>
+                                    <td style="text-align:right;"><?= (int)$row['total_barang'] ?></td>
+                                    <td style="text-align:right;font-weight:700;white-space:nowrap;">Rp <?= htmlspecialchars($row['total_harga']) ?></td>
                                     <td>
                                         <span style="display:inline-block; padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:700; background:<?= $STATUS_COLOR[$s]['bg'] ?? '#f3f4f6' ?>; color:<?= $STATUS_COLOR[$s]['color'] ?? '#555' ?>; white-space:nowrap;">
                                             <?= $STATUS_LABEL[$s] ?? 'Unknown' ?>
