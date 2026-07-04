@@ -41,7 +41,7 @@ try {
 
         if (!sqlsrv_execute($stmt)) {
             $errors = sqlsrv_errors();
-            echo json_encode(["status" => "error", "target" => "general", "message" => "Eksekusi Query Gagal: " . $errors[0]['message']]);
+            echo json_encode(["status" => "error", "target" => "general", "message" => "Query Execution Failed: " . $errors[0]['message']]);
             exit;
         }
 
@@ -65,8 +65,13 @@ try {
             session_start();
         }
 
+        // Simpan identitas ke PHP session agar halaman berbasis session
+        // (mis. orders/controller_orders.php) mengenali user yang login.
+        $_SESSION['id_pengguna'] = $user['id_pengguna'];
+        $_SESSION['role']        = $user['role'];
+
         echo json_encode([
-                            "status" => "success", 
+                            "status" => "success",
                             "message" => "Login successful", 
                             "role" => $user['role'], 
                             "id_pengguna" => $user['id_pengguna'],

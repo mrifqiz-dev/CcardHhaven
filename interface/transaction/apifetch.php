@@ -23,7 +23,7 @@ if ($action !== '') {
                 case 'kirim':
                     $no_resi = trim($body['no_resi'] ?? '');
                     if ($no_resi === '') { 
-                        echo json_encode(['status' => 'error', 'message' => 'No resi wajib diisi']); exit; 
+                        echo json_encode(['status' => 'error', 'message' => 'Tracking number is required']); exit;
                     }
                     $ok = $ctrl->kirimOrder($id, $modified_by, $no_resi);
                     echo json_encode(['status' => $ok ? 'success' : 'error']); exit;
@@ -57,10 +57,12 @@ else {
     $page   = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
     $status = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : null;
     $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-    
+    $sortBy    = isset($_GET['sort_by']) ? strtoupper($_GET['sort_by']) : 'DATE';
+    $sortOrder = isset($_GET['sort_order']) ? strtoupper($_GET['sort_order']) : 'DESC';
+
     $ctrl = new controllerTransaction($conn);
-    $result = $ctrl->fetchTransaksi($page, $status, $search);
-    
+    $result = $ctrl->fetchTransaksi($page, $status, $search, $sortBy, $sortOrder);
+
     $data = $result['data'];
     $total_pages = $result['total_pages'];
 }

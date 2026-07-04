@@ -27,7 +27,7 @@ function loadCart() {
             renderCart(data);
         })
         .catch(err => {
-            console.error('Gagal memuat keranjang:', err);
+            console.error('Failed to load cart:', err);
             showError();
             cardhavenAlert('error', 'Connection Error', 'Failed to load cart items from server.');
         });
@@ -53,6 +53,7 @@ function renderCart(data) {
         emptyMsg.style.display = 'block';
         setCheckoutState(false);
         updateSummary(0, 0, 0);
+        renderSummaryBreakdown([]);
         return;
     }
  
@@ -62,16 +63,20 @@ function renderCart(data) {
  
     let totalHarga    = 0;
     let selectedCount = 0;
- 
+    const selectedItems = [];
+
     data.forEach(item => {
         const tr = renderRow(item);
         tbody.appendChild(tr);
- 
+
         if (parseInt(item.is_selected) === 1) {
             totalHarga    += parseFloat(item.subtotal_harga) || 0;
             selectedCount += 1;
+            selectedItems.push(item);
         }
     });
+
+    renderSummaryBreakdown(selectedItems);
  
     itemCount.textContent = `${data.length} item${data.length > 1 ? 's' : ''}`;
  
@@ -90,7 +95,7 @@ function renderCart(data) {
 function renderRow(item) {
     const tr = document.createElement('tr');
     const formatIDR = n => 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(n));
-    const fotoSrc = item.foto ? `${BASE_URL}/${item.foto}` : `${BASE_URL}/image-profile/defaultProduct.jpg`;
+    const fotoSrc = item.foto ? `${BASE_URL}/assets/image/products/${item.foto}` : `${BASE_URL}/image-profile/defaultProduct.jpg`;
  
     tr.setAttribute('data-id', item.id_detail_keranjang);
  
@@ -118,23 +123,45 @@ function renderRow(item) {
             <div class="cart-qty-control">
                 <button class="cart-qty-btn"
                         onclick="updateQty(${item.id_detail_keranjang}, -1)"
-                        title="Kurangi">−</button>
+                        title="Subtract">−</button>
                 <span class="cart-qty-val">${item.jumlah_barang}</span>
                 <button class="cart-qty-btn"
                         onclick="updateQty(${item.id_detail_keranjang}, 1)"
-                        title="Tambah">+</button>
+                        title="Add">+</button>
             </div>
         </td>
         <td class="cart-total">${formatIDR(item.subtotal_harga)}</td>
         <td>
             <button class="cart-btn-remove"
                     onclick="deleteItem(${item.id_detail_keranjang})"
-                    title="Hapus dari keranjang">✕</button>
+                    title="Delete form cart">✕</button>
         </td>
     `;
     return tr;
 }
  
+// Rincian total: tampilkan tiap item terpilih beserta subtotalnya
+function renderSummaryBreakdown(items) {
+    const box = document.getElementById('summary-items');
+    if (!box) return;
+    const fmt = n => 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(n));
+
+    if (!items || items.length === 0) {
+        box.innerHTML = '<div class="summary-items-empty">No items selected.</div>';
+        return;
+    }
+
+    box.innerHTML = items.map(it => `
+        <div class="summary-item">
+            <div>
+                <div class="summary-item-name">${escapeHtml(it.nama_produk)}</div>
+                <div class="summary-item-qty">${fmt(it.harga_produk)} × ${it.jumlah_barang}</div>
+            </div>
+            <div class="summary-item-price">${fmt(it.subtotal_harga)}</div>
+        </div>
+    `).join('');
+}
+
 function updateSummary(total, selectedCount, totalItems) {
     const fmt = n => 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(n));
     document.getElementById('subtotal-display').textContent    = fmt(total);
@@ -240,7 +267,7 @@ function deleteItem(id) {
 function showError() {
     const tbody = document.getElementById('cart-table-body');
     if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 40px; color: #dc2626; font-weight:bold;">Gagal memuat keranjang. Silahkan refresh halaman.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 40px; color: #dc2626; font-weight:bold;">Unable to load the basket. Please refresh the page.</td></tr>`;
     }
 }
  
