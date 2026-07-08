@@ -89,12 +89,15 @@ async function openDetailModal(id_penjualan) {
         const h = data;
         const st = parseInt(h.status_penjualan);
 
-        // Tentukan tombol aksi yang tampil
+        // Tentukan tombol aksi yang tampil. Owner (role 3) view-only — tanpa tombol aksi.
+        const USER_ROLE = parseInt(sessionStorage.getItem('role') || localStorage.getItem('role') || 0);
         let actionBtns = '';
 
-        if (st === 0) {
+        if (USER_ROLE === 3) {
+            // view-only: tidak ada tombol aksi untuk Owner
+        } else if (st === 0) {
             actionBtns = `
-                <button class="btn-trx-action btn-confirm" onclick="doAction('konfirmasi_bayar', ${id_penjualan})">
+                <button class="btn-trx-action btn-confirm" onclick="doAction('confirm_payment', ${id_penjualan})">
                     ✅ Confirm Payment
                 </button>
                 <button class="btn-trx-action btn-cancel" onclick="doAction('cancel', ${id_penjualan})">
@@ -266,17 +269,17 @@ async function submitKirim(id_penjualan) {
     const tgl_kirim = document.getElementById('inputTglKirim').value;
 
     if (!no_resi) {
-        cardhavenAlert('Alert', 'Tracking number is required!', 'warning');
+        cardhavenAlert('Alert',  'warning', 'Tracking number is required!');
         return;
     }
 
     const res  = await postAction('kirim', id_penjualan, { no_resi, tanggal_pengiriman: tgl_kirim });
     if (res.status === 'success') {
-        cardhavenAlert('Success', 'Package shipment has been confirmed.', 'success');
+        cardhavenAlert('Success', 'success', 'Package shipment has been confirmed.');
         closeTrxModal();
         setTimeout(() => location.reload(), 1200);
     } else {
-        cardhavenAlert('Error', res.message ?? 'Failed to update status.', 'error');
+        cardhavenAlert('Error', 'error', res.message ?? 'Failed to update status.', );
     }
 }
 
@@ -296,7 +299,7 @@ async function postAction(action, id_penjualan, extra = {}) {
 
 async function doAction(action, id_penjualan) {
     const CONFIRM_MSG = {
-        konfirmasi_bayar: ['Confirm Payment?', 'The payment will be marked as received.', 'Yes, Confirm'],
+        confirm_payment: ['Confirm Payment?', 'The payment will be marked as received.', 'Yes, Confirm'],
         proses:           ['Process Order?', 'The order will be moved to the Processing status.', 'Yes, Processs'],
         delivered:        ['Mark as Delivered?', 'The order will be marked as delivered to the customer.', 'Yes, Mark as Delivered'],
         cancel:           ['Cancel Order?', 'The product stock will be restored. This action cannot be undone.', 'Yes, Cancel'],
@@ -307,11 +310,11 @@ async function doAction(action, id_penjualan) {
     cardhavenConfirm(title, text, btnText, async () => {
         const res = await postAction(action, id_penjualan);
         if (res.status === 'success') {
-            cardhavenAlert('Success', 'Status has been updated successfully.', 'success');
+            cardhavenAlert('Success', 'success', 'Status has been updated successfully.');
             closeTrxModal();
             setTimeout(() => location.reload(), 1200);
         } else {
-            cardhavenAlert('Error', res.message ?? 'Failed to update status.', 'error');
+            cardhavenAlert('Error', 'error', res.message ?? 'Failed to update status.', );
         }
     }, null);
 }
@@ -346,3 +349,11 @@ function trxNavigate(params) {
 function setTrxStatus(val) { trxNavigate({ status: val }); }
 function setTrxSort(val)   { trxNavigate({ sort_by: val }); }
 function toggleTrxOrder(current) { trxNavigate({ sort_order: current === 'ASC' ? 'DESC' : 'ASC' }); }
+
+// ════════════════════════════════════════════════════════════════════════════
+// SHORTCUT DARI DASHBOARD: buka modal detail langsung via ?open_sales=<id>
+// ════════════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    const id = new URLSearchParams(window.location.search).get('open_sales');
+    if (id) openDetailModal(parseInt(id));
+});
