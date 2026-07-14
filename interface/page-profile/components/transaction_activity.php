@@ -5,34 +5,9 @@
         <button class="tab-btn" onclick="switchTab('buyback')">Buy Back</button>
     </div>
 
-    <div class="transaction-toolbar" id="bp-toolbar">
-        <div class="search-box">
-            <img src="/cardhaven/assets/image/search.svg" alt="Search">
-            <input type="text" id="bp-search" placeholder="Search order ID, payment, address..." oninput="onOrderFilterChange()">
-        </div>
-        <select class="filter-btn" id="bp-status" onchange="onOrderFilterChange()">
-            <option value="">All Status</option>
-            <option value="0">Pending Payment</option>
-            <option value="1">Paid</option>
-            <option value="2">Waiting Stock</option>
-            <option value="3">Processing</option>
-            <option value="4">Shipped</option>
-            <option value="5">Delivered</option>
-            <option value="6">Completed</option>
-            <option value="7">Returned</option>
-            <option value="8">Cancelled</option>
-        </select>
-        <select class="filter-btn" id="bp-sortby" onchange="onOrderFilterChange()">
-            <option value="date">Sort by Date</option>
-            <option value="price">Sort by Price</option>
-            <option value="items">Sort by Items</option>
-        </select>
-        <button class="sort-btn" id="bp-sort" onclick="toggleOrderDateSort()" title="Sort by date">
-            <span id="bp-sort-icon">↓</span>
-        </button>
-    </div>
-
-    <!-- Preorder Table -->
+    <!-- ========================================== -->
+    <!-- TAB 1: PREORDER (Tanpa Toolbar Dulu)       -->
+    <!-- ========================================== -->
     <div id="tab-preorder" class="tab-content" style="display: none;">
         <div class="table-responsive">
             <table class="cardhaven-table">
@@ -47,15 +22,46 @@
                         <th>Action</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="preorder-body">
                     <tr><td colspan="7" style="text-align: center;">No Pre-order records yet.</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Buy Product Table -->
+    <!-- ========================================== -->
+    <!-- TAB 2: BUY PRODUCT (Toolbar & Pag di Dalam)-->
+    <!-- ========================================== -->
     <div id="tab-buyproduct" class="tab-content active">
+        
+        <!-- TOOLBAR BUY PRODUCT DIPINDAH KE SINI -->
+        <div class="transaction-toolbar" id="bp-toolbar">
+            <div class="search-box">
+                <img src="/cardhaven/assets/image/search.svg" alt="Search">
+                <input type="text" id="bp-search" placeholder="Search order ID, payment, address..." oninput="onOrderFilterChange()">
+            </div>
+            <select class="filter-btn" id="bp-status" onchange="onOrderFilterChange()">
+                <option value="">All Status</option>
+                <option value="0">Pending Payment</option>
+                <option value="1">Paid</option>
+                <option value="2">Waiting Stock</option>
+                <option value="3">Processing</option>
+                <option value="4">Shipped</option>
+                <option value="5">Delivered</option>
+                <option value="6">Completed</option>
+                <option value="7">Returned</option>
+                <option value="8">Cancelled</option>
+            </select>
+            <select class="filter-btn" id="bp-sortby" onchange="onOrderFilterChange()">
+                <option value="date">Sort by Date</option>
+                <option value="price">Sort by Price</option>
+                <option value="items">Sort by Items</option>
+            </select>
+            <button class="sort-btn" id="bp-sort" onclick="toggleOrderDateSort()" title="Sort by date">
+                <span id="bp-sort-icon">↓</span>
+            </button>
+        </div>
+
         <div class="table-responsive">
             <table class="cardhaven-table">
                 <thead>
@@ -74,11 +80,16 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- PAGINATION BUY PRODUCT DIPINDAH KE SINI -->
+        <div class="pagination" id="bp-pagination"></div>
     </div>
 
-    <!-- Buyback Table (riwayat asli, sama seperti interface/buyback/customer.php) -->
+    <!-- ========================================== -->
+    <!-- TAB 3: BUY BACK (Toolbar & Pag di Dalam)   -->
+    <!-- ========================================== -->
     <div id="tab-buyback" class="tab-content" style="display: none;">
-        <!-- Toolbar khusus Buy Back (search + filter status buyback + sort) -->
+        
         <div class="transaction-toolbar" id="bb-toolbar">
             <div class="search-box">
                 <img src="/cardhaven/assets/image/search.svg" alt="Search">
@@ -130,8 +141,8 @@
         <div class="pagination" id="bb-pagination"></div>
     </div>
 
-    <!-- Pagination (dynamic; driven by the active tab) -->
-    <div class="pagination" id="bp-pagination"></div>
+        <div class="pagination" id="bb-pagination"></div>
+    </div>
 </div>
 
 <!-- Order Detail Modal (opened by ••• action button) -->
@@ -159,6 +170,16 @@
         transition: filter .15s;
     }
     .action-dots-btn:hover { filter: brightness(1.15); }
+
+    /* Tombol lanjut bayar untuk order Pending Payment */
+    .action-pay-btn {
+        border: none; background: #16a34a; color: #fff;
+        height: 26px; padding: 0 10px; border-radius: 6px; cursor: pointer;
+        font-weight: 700; font-size: 0.72rem; white-space: nowrap;
+        display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+        transition: filter .15s;
+    }
+    .action-pay-btn:hover { filter: brightness(1.12); }
 
     /* Order detail modal */
     .order-detail-overlay {

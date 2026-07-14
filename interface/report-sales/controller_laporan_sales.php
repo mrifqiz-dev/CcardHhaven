@@ -97,6 +97,11 @@ switch ($action) {
         
         $data = getFilteredAndSortedData($conn, $tahun, $bulan, $search, $sortBy, $sortOrder);
         
+        echo "<table>";
+        echo "<tr><td colspan='7' style='font-size:18pt;font-weight:bold;color:#0F3891;'>CardHaven</td></tr>";
+        echo "<tr><td colspan='7' style='font-weight:bold;'>Sales Transaction Report</td></tr>";
+        echo "<tr><td colspan='7'>Generated on: " . date('d-m-Y H:i') . "</td></tr>";
+        echo "</table>";
         echo "<table border='1'>";
         echo "<tr><th>No</th><th>Date</th><th>Customer</th><th>Product List</th><th>Payment Method</th><th>Total Qty</th><th>Total Sales</th></tr>";
         
@@ -123,20 +128,24 @@ switch ($action) {
         if (ob_get_length()) ob_end_clean();
         $data = getFilteredAndSortedData($conn, $tahun, $bulan, $search, $sortBy, $sortOrder);
         
-        $pdf = new TCPDF('L', PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+        require_once __DIR__ . '/../report_pdf.php'; // kop & footer standar CardHaven
+        $pdf = new CardHavenPDF('L', PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
         $pdf->SetCreator(PDF_CREATOR);
         $pdf->SetTitle('Sales Report');
-        $pdf->setPrintHeader(false);
-        $pdf->SetMargins(15, 15, 15);
-        $pdf->SetAutoPageBreak(TRUE, 15);
+
+        // --- PERBAIKAN MULAI DISINI (Menyamakan dengan Restock) ---
+        $pdf->setPrintHeader(true); // Aktifkan Kop Surat
+        $pdf->setPrintFooter(true); // Aktifkan Footer
+        $pdf->setFooterFont(Array('helvetica', '', 9));
+        
+        // Margin atas diatur ke 30 agar Kop Surat tidak menabrak isi tabel
+        $pdf->SetMargins(15, 30, 15); 
+        $pdf->SetFooterMargin(10);
+        $pdf->SetAutoPageBreak(TRUE, 20);
+        // --- AKHIR PERBAIKAN ---
+
         $pdf->AddPage();
         $pdf->SetFont('helvetica', '', 10);
-
-        $pdf->setPrintFooter(true); 
-        $pdf->setFooterFont(Array('helvetica', '', 9));
-        $pdf->SetFooterMargin(10);
-        
-        
 
         $html = '<h2 style="text-align:center; color:#0F3891; margin-bottom:0;">Sales Transaction Report</h2>';
         $html .= '<p style="text-align:center; font-size:9px; color:#666;">Generated on: ' . date('d-m-Y H:i') . '</p><br/>';
@@ -149,7 +158,7 @@ switch ($action) {
                             <th width="15%">Customer</th>
                             <th width="30%">Products</th>
                             <th width="15%">Payment Method</th>
-                            <th width="7%">Quantity</th>
+                            <th width="8%">Quantity</th>
                             <th width="15%">Total (Rp)</th>
                         </tr>
                     </thead>
@@ -168,15 +177,15 @@ switch ($action) {
                         <td width="15%"><b>'.htmlspecialchars($row['nama_customer']).'</b></td>
                         <td width="30%">'.htmlspecialchars($row['daftar_produk']).'</td>
                         <td width="15%" align="center">'.$row['nama_metode'].'</td>
-                        <td width="7%" align="right">'.$row['total_barang'].'</td>
+                        <td width="8%" align="right">'.$row['total_barang'].'</td>
                         <td width="15%" align="right">Rp '.number_format($row['total_harga'], 0, ',', '.').'</td>
                     </tr>';
         }
         $html .= '<tr style="background-color:#f2f2f2; font-weight:bold;" nobr="true">
                     <td colspan="5" align="right">GRAND TOTAL</td>
-                    <td width="7%" align="center">'.number_format($totalQty, 0, ',', '.').'</td>
+                    <td width="8%" align="right">'.number_format($totalQty, 0, ',', '.').'</td>
                     <td width="15%" align="right">Rp '.number_format($totalNominal, 0, ',', '.').'</td>
-                  </tr></tbody></table>';
+                </tr></tbody></table>';
 
         $pdf->writeHTML($html, true, false, true, false, '');
         $pdf->Output('Laporan_Sales_' . date('d-m-Y') . '.pdf', 'I');

@@ -7,7 +7,7 @@ require __DIR__ . '/../../connection.php';
 require __DIR__ . '/../../diagnose.php';
 
 $client_id = $_ENV['FACEBOOK_CLIENT_ID'];
-$client_secret = $_ENV['FACEBOOK_CLIENT_CLIENT'];
+$client_secret = $_ENV['FACEBOOK_CLIENT_SECRET'];
 $redirect_uri  = "http://localhost/cardhaven/interface/login-page/facebook-callback.php";
 
 if (isset($_GET['code'])) {
@@ -94,6 +94,7 @@ if (isset($_GET['code'])) {
             <head>
                 <meta charset="UTF-8">
                 <title>Processing...</title>
+    <link rel="icon" type="image/svg+xml" href="/cardhaven/assets/image/logo.svg">
                 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
             </head>
             <body>

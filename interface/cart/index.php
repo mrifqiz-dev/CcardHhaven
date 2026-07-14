@@ -15,6 +15,7 @@ session_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shopping Cart - CardHaven</title>
+    <link rel="icon" type="image/svg+xml" href="/cardhaven/assets/image/logo.svg">
     <link rel="stylesheet" href="/cardhaven/interface/global.css">
     <style>
         .main-content {
@@ -190,7 +191,7 @@ session_start();
                     <div id="cart-empty-msg" style="display:none;">
                         <div class="empty-cart-icon">🛒</div>
                         <p>Your cart is empty. Time to add some cards!</p>
-                        <a href="/cardhaven/interface/home/" class="btn-shop-now">Browse Cards</a>
+                        <a href="/CardHaven/home" class="btn-shop-now">Browse Cards</a>
                     </div>
                 </div>
 
