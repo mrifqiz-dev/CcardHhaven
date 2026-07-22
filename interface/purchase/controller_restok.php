@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../auth/session.php';
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
@@ -33,11 +33,10 @@ function getSqlError() {
     return $errors[0]['message'] ?? 'Unknown SQL Server Error';
 }
 
-$actor_id = (int)($_POST['actor_id'] ?? $_GET['actor_id'] ?? 0);
-if (!$actor_id) {
-    http_response_code(401);
-    jsonOut('error', 'You must be logged in.');
-}
+// Purchase (Restok/Buyback) ada di menu yang disembunyikan untuk Employee —
+// jadi hanya Manager & Owner. Pelaku aksi (jejak audit) diambil dari session,
+// bukan dari actor_id kiriman browser yang bisa diganti jadi id orang lain.
+$actor_id = auth_api_require_role([ROLE_MANAGER, ROLE_OWNER])['id'];
 
 $stmtActor = sqlsrv_query($conn, "SELECT role FROM dbo.pengguna WHERE id_pengguna = ? AND is_deleted = 0 AND status_akun = 1", [$actor_id]);
 $actor = sqlsrv_fetch_array($stmtActor, SQLSRV_FETCH_ASSOC);
@@ -118,14 +117,14 @@ switch ($action) {
             'header'      => $header,
             'items'       => $items,
             // Manager (role 2) menjalankan lifecycle PO; Owner (role 3) view-only.
-            'can_approve' => ($role === 2) ? 1 : 0,
+            'can_approve' => ($role === 3) ? 1 : 0,
             'can_receive' => ($role === 2) ? 1 : 0,
             'can_pay'     => ($role === 2) ? 1 : 0,
         ]);
 
     // ─── APPROVE ─────────────────────────────────────────────────────────
     case 'approve':
-        if ($role !== 2) jsonOut('error', 'Only Manager can approve a Purchase Order.');
+        if ($role !== 3) jsonOut('error', 'Only Owner can approve a Purchase Order.');
         $id = (int)($_POST['id_restok'] ?? 0);
         if (!$id) jsonOut('error', 'Invalid ID.');
 
@@ -136,7 +135,7 @@ switch ($action) {
 
     // ─── REJECT ──────────────────────────────────────────────────────────
     case 'reject':
-        if ($role !== 2) jsonOut('error', 'Only Manager can reject a Purchase Order.');
+        if ($role !== 3) jsonOut('error', 'Only Owner can reject a Purchase Order.');
         $id = (int)($_POST['id_restok'] ?? 0);
         if (!$id) jsonOut('error', 'Invalid ID.');
 
@@ -195,7 +194,7 @@ switch ($action) {
 
     // ─── CREATE PO BARU ─────────────────────────────────────────────────────
     case 'create':
-        if ($role !== 2) jsonOut('error', 'Only Superadmin can create a Purchase Order.');
+        if ($role !== 2) jsonOut('error', 'Only Manager can create a Purchase Order.');
         $id_supplier = (int)($_POST['id_supplier'] ?? 0);
         $itemsJson   = $_POST['items'] ?? '';
         $items       = json_decode($itemsJson, true);

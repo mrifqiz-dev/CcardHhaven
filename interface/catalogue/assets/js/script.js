@@ -4,7 +4,7 @@
 const base = typeof BASE_URL !== 'undefined' ? BASE_URL : '/CardHaven';
 const CART_CONTROLLER = `${base}/interface/cart/controller_keranjang.php`;
 
-const getUserId = () => localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
+const getUserId = () => CardHavenAuth.id() || null;
 const userId = getUserId();
 
 function formatRupiah(angka) {
@@ -105,7 +105,11 @@ function fetchFiltersDB() {
                 
                 // --- PENCOCOKAN NAMA GAME KE ID GAME (Jika dari form Explore) ---
                 if (pendingGameName) {
-                    const matchedGame = data.games.find(g => g.nama_game.toLowerCase() === pendingGameName);
+                    const matchedGame = data.games.find(g => 
+                        g.nama_game.toLowerCase() === pendingGameName || 
+                        g.nama_game.toLowerCase().includes(pendingGameName) ||
+                        pendingGameName.includes(g.nama_game.toLowerCase())
+                    );
                     // Kalau ketemu ID-nya, masukkan ke array filter
                     if (matchedGame && !state.games.includes(matchedGame.id_game.toString())) {
                         state.games.push(matchedGame.id_game.toString());
@@ -255,8 +259,10 @@ function renderCatalogue(products) {
     }
 
     products.forEach(item => {
-        let fotoPath = item.foto || 'image-profile/defaultProduct.jpg';
-        let fotoSrc = fotoPath.includes('image-profile/') || fotoPath.includes('assets/') ? `${base}/${fotoPath}` : `${base}/assets/image/products/${fotoPath}`;
+        let fotoPath = item.foto || 'assets/image/image-profile/defaultProduct.jpg';
+        // Data lama: path tersimpan dgn prefix folder lama → arahkan ke lokasi baru
+        if (fotoPath.startsWith('image-profile/')) fotoPath = `assets/image/${fotoPath}`;
+        let fotoSrc = fotoPath.includes('assets/') ? `${base}/${fotoPath}` : `${base}/assets/image/products/${fotoPath}`;
 
         let stokTersedia = parseInt(item.stok);
         if (isNaN(stokTersedia)) stokTersedia = 0; 
@@ -343,7 +349,6 @@ window.addCatToCart = function(idProduk, hargaSatuan) {
     fd.append('id_produk', idProduk);
     fd.append('harga_produk', hargaSatuan); 
     fd.append('jumlah', qty);               
-    fd.append('id_pengguna_js', userId);
 
     fetch(CART_CONTROLLER, { method: 'POST', body: fd })
     .then(res => res.json()).then(res => {
@@ -365,7 +370,6 @@ window.buyNowCat = function(idProduk, hargaSatuan) {
     fd.append('id_produk', idProduk);
     fd.append('harga_produk', hargaSatuan);
     fd.append('jumlah', qty);
-    fd.append('id_pengguna_js', userId);
 
     fetch(CART_CONTROLLER, { method: 'POST', body: fd })
     .then(res => res.json()).then(res => {

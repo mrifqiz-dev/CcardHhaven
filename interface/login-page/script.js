@@ -25,10 +25,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const forgotSubmit = document.getElementById("forgot-submit");
     const backToLogin = document.getElementById("back-to-login");
 
-    const idPenggunaa = localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
-    const rolePenggunaa = localStorage.getItem('role') || sessionStorage.getItem('role');
-
-    if(idPenggunaa && rolePenggunaa !== 0){
+    // Kalau pegawai sudah punya session login aktif, langsung ke dashboard.
+    // Identitas diambil dari session PHP (window.CH_AUTH), bukan dari storage browser.
+    if (CardHavenAuth.isStaff()) {
         window.location.replace("/CardHaven/dashboard/activity");
     }
 
@@ -50,6 +49,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (checkBox) checkBox.addEventListener("click", rememberMe);
     if (checkText) checkText.addEventListener("click", rememberMe);
+
+    // Hilangkan pesan error (dan border merah) begitu user mengetik ulang di field-nya.
+    [
+        [emailInput, errorEmail],
+        [passwordInput, errorPass],
+    ].forEach(([input, error]) => {
+        if (input && error) {
+            input.addEventListener("input", () => clearError(input, error));
+        }
+    });
 
     // ==========================================
     // LOGIKA LOGIN
@@ -93,29 +102,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 const data = JSON.parse(responseText);
 
                 if (data.status === "success") {
-                    const storage = clicked ? localStorage : sessionStorage;
-                    storage.setItem("userEmail", email);
-                    storage.setItem("role", data.role);
-                    storage.setItem("id_pengguna", data.id_pengguna);
-                    storage.setItem("username", data.username);
+                    // Tidak ada lagi penyimpanan identitas di browser.
+                    // id_pengguna & role sudah tersimpan aman di PHP session.
 
-                    // Animasi Sukses Login
-                    Swal.fire({
-                        icon: 'success',
-                        iconColor: '#0088FF',
-                        title: 'Login successful!',
-                        text: 'Welcome back to CardHaven.',
-                        showConfirmButton: false,
-                        timer: 1500,
-                        background: '#ffffff',
-                        customClass: { title: 'coolveticaa' }
-                    }).then(() => {
-                        if (data.role == 2 || data.role == 3 || data.role == 1) {
-                            window.location.replace("/CardHaven/dashboard/activity");
-                        } else {
-                            window.location.replace("/CardHaven/home");
-                        }
-                    });
+                    // Animasi Sukses Login (muncul di halaman tujuan)
+                    sessionStorage.setItem('ch_toast_msg', 'Login successful!');
+                    sessionStorage.setItem('ch_toast_icon', 'success');
+                    window.location.replace(data.redirect || "/CardHaven/home");
 
                 } else {
                     btnSubmit.innerText = originalText;
@@ -346,6 +339,12 @@ function showError(inputElement, errorElement, message) {
     inputElement.style.borderColor = "red";
     errorElement.innerText = message;
     errorElement.style.display = "block";
+}
+
+function clearError(inputElement, errorElement) {
+    inputElement.style.borderColor = "#0F3891";
+    errorElement.style.display = "none";
+    errorElement.innerText = "";
 }
 
 function resetErrors(inputs, errors) {

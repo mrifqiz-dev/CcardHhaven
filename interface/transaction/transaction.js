@@ -41,13 +41,15 @@ const STATUS_BG = {
 // ════════════════════════════════════════════════════════════════════════════
 
 function getUserId() {
-    return sessionStorage.getItem('id_pengguna') || localStorage.getItem('id_pengguna') || 0;
+    return CardHavenAuth.id();
 }
 
 // Resolusi path foto produk yang konsisten: path lengkap dipakai apa adanya,
 // nama file polos diarahkan ke folder produk.
 function productImg(foto) {
-    if (!foto) return '/CardHaven/image-profile/defaultProduct.jpg';
+    if (!foto) return '/CardHaven/assets/image/image-profile/defaultProduct.jpg';
+    // Data lama: path tersimpan dgn prefix folder lama → arahkan ke lokasi baru
+    if (foto.startsWith('image-profile/')) foto = `assets/image/${foto}`;
     return foto.includes('/') ? `/CardHaven/${foto}` : `/CardHaven/assets/image/products/${foto}`;
 }
 
@@ -90,43 +92,52 @@ async function openDetailModal(id_penjualan) {
         const st = parseInt(h.status_penjualan);
 
         // Tentukan tombol aksi yang tampil. Owner (role 3) view-only — tanpa tombol aksi.
-        const USER_ROLE = parseInt(sessionStorage.getItem('role') || localStorage.getItem('role') || 0);
+        const USER_ROLE = CardHavenAuth.role();
         let actionBtns = '';
 
         if (USER_ROLE === 3) {
             // view-only: tidak ada tombol aksi untuk Owner
         } else if (st === 0) {
             actionBtns = `
-                <button class="btn-trx-action btn-confirm" onclick="doAction('confirm_payment', ${id_penjualan})">
-                    ✅ Confirm Payment
-                </button>
                 <button class="btn-trx-action btn-cancel" onclick="doAction('cancel', ${id_penjualan})">
-                    ❌ Reject / Cancel
+                    Cancel
                 </button>`;
-        } else if (st === 1 || st === 2) {
+        } else if (st === 1) {
+            // Jika sudah paid (1), admin bisa me-reject payment customer (kembali ke 0) 
             actionBtns = `
                 <button class="btn-trx-action btn-process" onclick="doAction('proses', ${id_penjualan})">
-                    ⚙️ Process Order
+                    Process Order
+                </button>
+                <button class="btn-trx-action btn-cancel" onclick="promptRejectPayment(${id_penjualan})">
+                    Reject Payment
+                </button>`;
+        } else if (st === 2) {
+            actionBtns = `
+                <button class="btn-trx-action btn-process" onclick="doAction('proses', ${id_penjualan})">
+                    Process Order
                 </button>
                 <button class="btn-trx-action btn-cancel" onclick="doAction('cancel', ${id_penjualan})">
-                    ❌ Cancel
+                    Cancel
                 </button>`;
         } else if (st === 3) {
             actionBtns = `
                 <button class="btn-trx-action btn-ship" onclick="openShipModal(${id_penjualan})">
-                    🚚 Ship Order
+                    Ship Order
                 </button>`;
         } else if (st === 4) {
             actionBtns = `
                 <button class="btn-trx-action btn-deliver" onclick="doAction('delivered', ${id_penjualan})">
-                    🏠 Set Delivered
+                    Set Delivered
                 </button>`;
         }
 
-        // Bukti bayar
+        // Bukti bayar — nilai DB adalah path relatif lengkap dari web root.
+        // Data lama masih memakai folder 'bukti_pembayaran/' → arahkan ke lokasi baru.
+        let buktiSrc = h.bukti_pembayaran || '';
+        if (buktiSrc.startsWith('bukti_pembayaran/')) buktiSrc = `assets/image/${buktiSrc}`;
         const buktiHtml = h.bukti_pembayaran
-            ? `<a href="/CardHaven/image-profile/${h.bukti_pembayaran}" target="_blank">
-                <img src="/CardHaven/image-profile/${h.bukti_pembayaran}"
+            ? `<a href="/CardHaven/${buktiSrc}" target="_blank">
+                <img src="/CardHaven/${buktiSrc}"
                     style="max-width:180px;max-height:130px;border-radius:8px;border:1px solid rgba(255,255,255,.15);object-fit:cover;cursor:pointer;">
                </a>`
             : `<span style="opacity:.45;font-size:.8rem;">No proof yet</span>`;
@@ -135,16 +146,16 @@ async function openDetailModal(id_penjualan) {
         const itemsHtml = (data.items || []).map(item => `
             <tr>
                 <td style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;">
-                    <img src="${item.foto ? `/CardHaven/assets/image/products/${item.foto}` : '/CardHaven/image-profile/defaultProduct.jpg'}"
+                    <img src="${item.foto ? `/CardHaven/assets/image/products/${item.foto}` : '/CardHaven/assets/image/image-profile/defaultProduct.jpg'}"
                         style="width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0;">
                     <div>
                         <div style="font-weight:600;font-size:.85rem;">${item.nama_produk ?? '-'}</div>
                         <div style="font-size:.72rem;opacity:.55;">${item.tipe_produk ?? ''} · ${item.kondisi ?? ''}</div>
                     </div>
                 </td>
-                <td style="text-align:right;white-space:nowrap;">Rp ${item.harga_produk}</td>
+                <td style="text-align:right;white-space:nowrap;">Rp ${Number(item.harga_produk).toLocaleString('id-ID')}</td>
                 <td style="text-align:center;">${item.jumlah_barang}</td>
-                <td style="text-align:right;white-space:nowrap;font-weight:700;">Rp ${item.subtotal_harga}</td>
+                <td style="text-align:right;white-space:nowrap;font-weight:700;">Rp ${Number(item.subtotal_harga).toLocaleString('id-ID')}</td>
             </tr>
         `).join('');
 
@@ -174,7 +185,7 @@ async function openDetailModal(id_penjualan) {
                     <div class="trx-info-row"><span>Provider</span><b>${h.provider ?? '-'}</b></div>
                     <div class="trx-info-row"><span>Account Number</span><b>${h.rek_tujuan ?? h.no_rekening ?? '-'}</b></div>
                     <div class="trx-info-row"><span>Account Holder</span><b>${h.atas_nama ?? '-'}</b></div>
-                    <div class="trx-info-row"><span>Admin Fee</span><b>Rp ${h.biaya_admin ?? 0}</b></div>
+                    <div class="trx-info-row"><span>Admin Fee</span><b>Rp ${parseInt(h.biaya_admin || 0).toLocaleString('id-ID')}</b></div>
                 </div>
 
                 <!-- Shipping -->
@@ -207,7 +218,7 @@ async function openDetailModal(id_penjualan) {
 
             <div style="display:flex;justify-content:flex-end;margin-top:.75rem;padding-top:.75rem;border-top:1px solid rgba(255,255,255,.1);">
                 <span style="font-size:.85rem;opacity:.65;margin-right:.5rem;">${h.total_barang} item · Total</span>
-                <span style="font-size:1rem;font-weight:800;color:var(--primary-color);">Rp ${h.total_harga}</span>
+                <span style="font-size:1rem;font-weight:800;color:var(--primary-color);">Rp ${parseInt(h.total_harga || 0).toLocaleString('id-ID')}</span>
             </div>
 
             ${actionBtns ? `<div class="trx-action-row">${actionBtns}</div>` : ''}
@@ -242,13 +253,13 @@ function openShipModal(id_penjualan) {
             <div class="trx-section-title">Shipping Details</div>
             <div style="margin-bottom:.85rem;">
                 <label style="display:block;font-size:.8rem;opacity:.65;margin-bottom:.3rem;">Tracking Number *</label>
-                <input id="inputResi" type="text" placeholder="Example: JNE1234567890
+                <input id="inputResi" type="text" placeholder="Example: JNE1234567890"
                     style="width:100%;padding:.6rem .85rem;border-radius:8px;border:1px solid rgba(255,255,255,.2);
                     background:rgba(255,255,255,.07);color:inherit;font-size:.9rem;box-sizing:border-box;">
             </div>
             <div>
                 <label style="display:block;font-size:.8rem;opacity:.65;margin-bottom:.3rem;">Shipping Date</label>
-                <input id="inputTglKirim" type="date" value="${today}"
+                <input id="inputTglKirim" type="date" value="${today}" min="${today}"
                     style="width:100%;padding:.6rem .85rem;border-radius:8px;border:1px solid rgba(255,255,255,.2);
                     background:rgba(255,255,255,.07);color:inherit;font-size:.9rem;box-sizing:border-box;">
             </div>
@@ -267,19 +278,31 @@ function openShipModal(id_penjualan) {
 async function submitKirim(id_penjualan) {
     const no_resi   = document.getElementById('inputResi').value.trim();
     const tgl_kirim = document.getElementById('inputTglKirim').value;
+    const today     = new Date().toISOString().split('T')[0];
 
     if (!no_resi) {
         cardhavenAlert('Alert',  'warning', 'Tracking number is required!');
         return;
     }
+    const alphanumericRegex = /^[a-zA-Z0-9]+$/;
+    if (!alphanumericRegex.test(no_resi)) {
+        cardhavenAlert('Alert', 'warning', 'Invalid tracking number!');
+        return;
+        }
 
-    const res  = await postAction('kirim', id_penjualan, { no_resi, tanggal_pengiriman: tgl_kirim });
+    // 3. Validasi Tanggal
+    if (tgl_kirim < today) {
+        cardhavenAlert('Alert', 'warning', 'Invalid shipment date!');
+        return;
+    }
+
+    const res = await postAction('kirim', id_penjualan, { no_resi: no_resi, tgl_kirim: tgl_kirim });
     if (res.status === 'success') {
         cardhavenAlert('Success', 'success', 'Package shipment has been confirmed.');
         closeTrxModal();
         setTimeout(() => location.reload(), 1200);
     } else {
-        cardhavenAlert('Error', 'error', res.message ?? 'Failed to update status.', );
+        cardhavenAlert('Error', 'error', res.message ?? 'Failed to update status.');
     }
 }
 
@@ -297,10 +320,39 @@ async function postAction(action, id_penjualan, extra = {}) {
     return await res.json();
 }
 
+function promptRejectPayment(id_penjualan) {
+    Swal.fire({
+        title: 'Reject Payment?',
+        text: 'Enter the reason why the payment was declined .',
+        input: 'textarea',
+        inputPlaceholder: 'Examples: Transfer amount is incorrect, receipt is blurry, etc...',
+        showCancelButton: true,
+        confirmButtonText: 'Reject & Notify',
+        confirmButtonColor: '#b91c1c',
+        preConfirm: (reason) => {
+            if (!reason) {
+                Swal.showValidationMessage('please provide a reason for rejecting the payment.');
+            }
+            return reason;
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            const res = await postAction('reject_payment', id_penjualan, { reason: result.value });
+            if (res.status === 'success') {
+                cardhavenAlert('Success', 'success', 'Payment rejected. Status reverted to Pending Payment.');
+                closeTrxModal();
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                cardhavenAlert('Error', 'error', res.message || 'Failed to reject payment.');
+            }
+        }
+    });
+}
+
 async function doAction(action, id_penjualan) {
     const CONFIRM_MSG = {
         confirm_payment: ['Confirm Payment?', 'The payment will be marked as received.', 'Yes, Confirm'],
-        proses:           ['Process Order?', 'The order will be moved to the Processing status.', 'Yes, Processs'],
+        proses:           ['Process Order?', 'The order will be moved to the Processing status.', 'Yes, Process'],
         delivered:        ['Mark as Delivered?', 'The order will be marked as delivered to the customer.', 'Yes, Mark as Delivered'],
         cancel:           ['Cancel Order?', 'The product stock will be restored. This action cannot be undone.', 'Yes, Cancel'],
     };
@@ -314,46 +366,107 @@ async function doAction(action, id_penjualan) {
             closeTrxModal();
             setTimeout(() => location.reload(), 1200);
         } else {
-            cardhavenAlert('Error', 'error', res.message ?? 'Failed to update status.', );
+            cardhavenAlert('Error', 'error', res.message ?? 'Failed to update status.');
         }
     }, null);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SEARCH (debounce)
+// AJAX TABLE UPDATE (Refresh tabel tanpa reload halaman)
+// ════════════════════════════════════════════════════════════════════════════
+
+async function updateTableHTML(url) {
+    try {
+        // Ganti URL di atas browser agar jika direfresh datanya tetap
+        window.history.pushState({ path: url }, '', url);
+        
+        const container = document.getElementById('tableContainer');
+        container.style.opacity = '0.4'; // Beri efek loading transparan
+
+        // Ambil HTML baru dari server
+        const res = await fetch(url);
+        const html = await res.text();
+
+        // Ekstrak hanya bagian <div id="tableContainer"> dari HTML baru
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const newContainer = doc.getElementById('tableContainer');
+
+        if (newContainer) {
+            container.innerHTML = newContainer.innerHTML;
+        }
+        
+        container.style.opacity = '1'; // Kembalikan opacity
+        attachPaginationEvents(); // Pasang event click lagi untuk tombol halaman (pagination)
+
+    } catch (err) {
+        console.error("Gagal memuat tabel:", err);
+        window.location.href = url; // Fallback jika AJAX error
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SEARCH (Otomatis saat ngetik)
 // ════════════════════════════════════════════════════════════════════════════
 
 let _searchTimer = null;
-
 function onSearchInput(val) {
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(() => {
         const url = new URL(window.location.href);
         url.searchParams.set('search', val);
         url.searchParams.set('page', 1);
-        window.location.href = url.toString();
-    }, 500);
+        url.searchParams.delete('open_sales'); // Cegah modal terbuka otomatis
+        updateTableHTML(url.toString()); // Gunakan AJAX!
+    }, 400); // 400ms delay setelah berhenti ngetik
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// FILTER BY / SORT BY (navigasi via URL, param lain dipertahankan)
+// FILTER BY / SORT BY
 // ════════════════════════════════════════════════════════════════════════════
 
 function trxNavigate(params) {
     const url = new URL(window.location.href);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    url.searchParams.set('page', 1);
-    window.location.href = url.toString();
+    if(params.page === undefined) url.searchParams.set('page', 1);
+    url.searchParams.delete('open_sales'); // Cegah modal terbuka otomatis
+    updateTableHTML(url.toString()); // Gunakan AJAX!
 }
 
 function setTrxStatus(val) { trxNavigate({ status: val }); }
 function setTrxSort(val)   { trxNavigate({ sort_by: val }); }
-function toggleTrxOrder(current) { trxNavigate({ sort_order: current === 'ASC' ? 'DESC' : 'ASC' }); }
+function toggleTrxOrder() { 
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get('sort_order') || 'DESC'; 
+    const nextOrder = current === 'ASC' ? 'DESC' : 'ASC';
+    
+    const icon = document.getElementById('trxSortIcon');
+    if(icon) icon.innerHTML = nextOrder === 'ASC'
+        ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+        : '<path d="M12 5v14M19 12l-7 7-7-7"/>';
+
+    trxNavigate({ sort_order: nextOrder });
+}
 
 // ════════════════════════════════════════════════════════════════════════════
-// SHORTCUT DARI DASHBOARD: buka modal detail langsung via ?open_sales=<id>
+// EVENT LISTENER AWAL
 // ════════════════════════════════════════════════════════════════════════════
+
+// Fungsi agar klik nomor halaman (Pagination) pakai AJAX juga
+function attachPaginationEvents() {
+    const links = document.querySelectorAll('.pagination-container a.page-link');
+    links.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            updateTableHTML(this.href);
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    attachPaginationEvents();
+
+    // Buka modal jika ada param open_sales di URL
     const id = new URLSearchParams(window.location.search).get('open_sales');
     if (id) openDetailModal(parseInt(id));
 });

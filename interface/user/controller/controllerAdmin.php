@@ -6,7 +6,8 @@
  * (2) dipanggil langsung via fetch untuk aksi AJAX (mode JSON).
  */
 error_reporting(E_ALL);
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../../../auth/session.php';
+auth_session_start();
 
 $action = $_REQUEST['action'] ?? '';
 $isAjax = ($action !== '');
@@ -49,7 +50,7 @@ function cleanSqlMessage(string $raw): string {
     return trim(preg_replace('/\[[^\]]*\]/', '', $raw));
 }
 
-// Simpan foto profil yang diupload ke folder image-profile/, kembalikan nama file (atau null).
+// Simpan foto profil yang diupload ke folder assets/image/image-profile/, kembalikan nama file (atau null).
 function saveProfilePhoto(?array $file): ?string {
     if (!$file || (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE)) return null;
     if ($file['error'] !== UPLOAD_ERR_OK) throw new Exception('Photo upload failed.');
@@ -57,7 +58,7 @@ function saveProfilePhoto(?array $file): ?string {
     $mime = @mime_content_type($file['tmp_name']) ?: '';
     if (!isset($allowed[$mime])) throw new Exception('Photo must be JPG, PNG, WEBP, or GIF.');
     if (($file['size'] ?? 0) > 3 * 1024 * 1024) throw new Exception('Photo must be under 3 MB.');
-    $dir = __DIR__ . '/../../../image-profile/';
+    $dir = __DIR__ . '/../../../assets/image/image-profile/';
     if (!is_dir($dir)) @mkdir($dir, 0777, true);
     $name = 'user_' . uniqid() . '.' . $allowed[$mime];
     $ok = is_uploaded_file($file['tmp_name'])
@@ -67,8 +68,13 @@ function saveProfilePhoto(?array $file): ?string {
     return $name;
 }
 
-$role    = 1;
-$actorId = trim((string)($_POST['actor_id'] ?? ''));
+$role = 1;
+
+// Manajemen pengguna hanya untuk Owner.
+if ($isAjax) auth_api_require_role([ROLE_OWNER]);
+
+// Pelaku aksi (jejak audit) diambil dari session, bukan dari actor_id kiriman browser.
+$actorId = (string)auth_id();
 
 if ($isAjax) {
     if (!isset($conn) || $conn === false) jsonOut(false, 'Database connection failed. Please try again.');

@@ -1,6 +1,6 @@
 const REPORT_CONTROLLER = '/cardhaven/interface/report-event/controller_laporan_event.php';
-const idPengguna = sessionStorage.getItem('id_pengguna') || localStorage.getItem('id_pengguna');
-const userRole = sessionStorage.getItem('role') || localStorage.getItem('role');
+const idPengguna = CardHavenAuth.id() || null;
+const userRole = CardHavenAuth.role();
 
 let allData = [];         // Menyimpan semua data mentah dari server
 let filteredData = [];    // Menyimpan data hasil pencarian & sorting
@@ -64,7 +64,10 @@ function changeSortCriterion() {
 
 function toggleSortOrder() {
     currentSortOrder = currentSortOrder === 'DESC' ? 'ASC' : 'DESC';
-    document.getElementById('btnSortOrder').innerHTML = currentSortOrder === 'DESC' ? 'Descending ↓' : 'Ascending ↑';
+    const _icon = document.getElementById('sortOrderIcon');
+    if (_icon) _icon.innerHTML = currentSortOrder === 'ASC'
+        ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+        : '<path d="M12 5v14M19 12l-7 7-7-7"/>';
     applyFilterAndSort();
 }
 

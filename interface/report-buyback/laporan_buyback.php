@@ -30,7 +30,7 @@
                             <button onclick="shiftYear(1)" style="background: #f8fafc; border: none; border-left: 1px solid #ccc; width: 35px; height: 100%; cursor: pointer; font-weight: bold; color: var(--primary-color); font-size: 1.2rem;">+</button>
                         </div>
                         
-                        <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 12px; border-radius: 8px;">
+                        <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 36px 0 12px; border-radius: 9999px;">
                             <option value="0">All Months</option>
                             <option value="1">January</option>
                             <option value="2">February</option>
@@ -46,7 +46,11 @@
                             <option value="12">December</option>
                         </select>
 
-                        <button id="btnSort" class="btn-sort-small" onclick="toggleSort()">Newest</button>
+                        <button id="btnSort" class="sort-btn" onclick="toggleSort()" title="Change Ascending/Descending">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 5v14M19 12l-7 7-7-7"/>
+                            </svg>
+                        </button>
                     </div>
 
                     <div class="export-group" style="display: flex; gap: 10px; flex-shrink: 0;">

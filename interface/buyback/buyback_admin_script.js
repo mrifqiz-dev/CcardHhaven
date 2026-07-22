@@ -1,7 +1,7 @@
 const BUYBACK_CONTROLLER = '/cardhaven/interface/buyback/controller_buyback.php';
 
-const idPengguna = sessionStorage.getItem('id_pengguna') || localStorage.getItem('id_pengguna');
-const userRole = sessionStorage.getItem('role') || localStorage.getItem('role');
+const idPengguna = CardHavenAuth.id() || null;
+const userRole = CardHavenAuth.role();
 
 // State ala halaman laporan: tarik semua data sekali, filter/sort/paginate di client.
 let allBuyback = [];
@@ -68,8 +68,10 @@ function changeBuybackSort() {
 
 function toggleBuybackSortOrder() {
     currentSortOrder = currentSortOrder === 'DESC' ? 'ASC' : 'DESC';
-    const btn = document.getElementById('btnBuybackSortOrder');
-    if (btn) btn.innerHTML = currentSortOrder === 'DESC' ? 'Descending ↓' : 'Ascending ↑';
+    const icon = document.getElementById('buybackSortIcon');
+    if (icon) icon.innerHTML = currentSortOrder === 'ASC'
+        ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+        : '<path d="M12 5v14M19 12l-7 7-7-7"/>';
     applyBuybackFilter();
 }
 
@@ -206,11 +208,32 @@ function openDetailModal(id_pembelian) {
             document.getElementById('modalTxId').innerText = `${pem.id_pembelian}`;
             document.getElementById('modalStatus').innerHTML = parseStatus(pem.status_pembelian);
 
+            let proofHtml = '';
+            if (pem.bukti_pembayaran) {
+                proofHtml = `
+                    <div style="margin-top: 15px; padding-top: 12px; border-top: 1px dashed #ccc;">
+                        <strong style="display:block; margin-bottom:5px; font-size:0.75rem; text-transform:uppercase; color:#666;">Payment Proof:</strong>
+                        <a href="/CardHaven/${pem.bukti_pembayaran}" target="_blank">
+                            <img src="/CardHaven/${pem.bukti_pembayaran}" 
+                                style="max-width: 150px; max-height: 100px; border-radius: 6px; border: 1px solid #ddd; object-fit: cover; cursor: pointer;"
+                                title="Click to enlarge">
+                        </a>
+                    </div>
+                `;
+            } else {
+                proofHtml = `
+                    <div style="margin-top: 15px; padding-top: 12px; border-top: 1px dashed #ccc;">
+                        <strong style="display:block; margin-bottom:5px; font-size:0.75rem; text-transform:uppercase; color:#666;">Payment Proof:</strong>
+                        <span style="font-size: 0.85rem; color: #999; font-style: italic;">No payment proof uploaded yet</span>
+                    </div>
+                `;
+            }
             let htmlContent = `
                 <div style="background: rgba(0,0,0,0.03); padding: 15px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;">
                     <strong>Customer:</strong> ${pem.username}<br>
                     <strong>Receipt:</strong> ${pem.no_resi || '-'}<br>
                     <strong>Notes / Return Addr:</strong> <span style="color: #E74C3C; font-weight: 600;">${pem.alamat || 'None'}</span>
+                    ${proofHtml}
                 </div>
             `;
 
@@ -253,7 +276,10 @@ function openDetailModal(id_pembelian) {
                 }
 
                 let cardActionHtml = '';
-                if (pem.status_pembelian == 1) {
+                if (userRole === 3) {
+                    // Owner: akses hanya-lihat (mirip Sales/Transaction) — tanpa tombol aksi per-kartu.
+                    cardActionHtml = '';
+                } else if (pem.status_pembelian == 1) {
                     if (!hasDecision) {
                         cardActionHtml = `
                             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -302,7 +328,7 @@ function openDetailModal(id_pembelian) {
                         <div style="font-size: 0.9rem; margin-bottom: 12px; padding-top: 10px; border-top: 1px dashed #e5e7eb;">
                             <p style="margin: 4px 0;"><strong>Customer Ask:</strong> Rp ${parseInt(k.penawaran_customer).toLocaleString('id-ID')}</p>
                             <p style="margin: 4px 0;"><strong>Admin Decision:</strong> ${adminOfferLabel}</p>
-                      html      <p style="margin: 4px 0;"><strong>Customer Attempts:</strong> <span style="color: #E67E22; font-weight: 600;">${actualAttempts} / 3</span></p>
+                            <p style="margin: 4px 0;"><strong>Customer Attempts:</strong> <span style="color: #E67E22; font-weight: 600;">${actualAttempts} / 3</span></p>
                         </div>
                         <div id="admin-action-${k.id_kartu}">${cardActionHtml}</div>
                     </div>`;
@@ -322,7 +348,12 @@ function openDetailModal(id_pembelian) {
             const btnGreen = `background: #065f46; color: white; ${btnBase}`;
             const btnDisabled = `background: #7c3aed; color: white; opacity: 0.4; cursor: not-allowed; ${btnBase}`;
 
-            if (status == 0) {
+            
+            if (userRole === 3) {
+                // Owner: akses hanya-lihat (mirip Sales/Transaction) — tanpa tombol aksi.
+                footerHtml = '';
+            }
+            else if (status == 0) {
                 footerHtml += `<button onclick="updateStatus(${pem.id_pembelian}, 10, 'Submission cancelled')" style="${btnCancel}">Cancel Submission</button>`;
                 footerHtml += `<button onclick="updateStatus(${pem.id_pembelian}, 1, 'Reviewing started')" style="${btnBlue}">Start Review</button>`;
             }
@@ -360,7 +391,10 @@ function openDetailModal(id_pembelian) {
                 footerHtml += `<button onclick="uploadPayment(${pem.id_pembelian})" style="${btnBlue}">Upload Payment Proof</button>`;
             }
 
-            document.getElementById('modalFooter').innerHTML = footerHtml;
+            const modalFooterEl = document.getElementById('modalFooter');
+            modalFooterEl.innerHTML = footerHtml;
+            // Owner view-only: sembunyikan area tombol biar tidak ada kotak kosong.
+            modalFooterEl.style.display = (userRole === 3) ? 'none' : 'flex';
             document.getElementById('detailModal').style.display = 'flex';
         }
     });

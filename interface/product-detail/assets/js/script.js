@@ -3,7 +3,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const productId = urlParams.get('id_produk') || urlParams.get('id');
 
 // Mendapatkan ID Pengguna (User Session/Localstorage)
-const userId = localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
+const userId = CardHavenAuth.id() || null;
 console.log(productId);
 
 // State Variables
@@ -82,13 +82,15 @@ function fetchProductDetail() {
                 
                 if (prod.foto) {
                     let fotoPath = prod.foto;
-                    if (fotoPath.includes('image-profile/') || fotoPath.includes('assets/')) {
+                    // Data lama: path tersimpan dgn prefix folder lama → arahkan ke lokasi baru
+                    if (fotoPath.startsWith('image-profile/')) fotoPath = `assets/image/${fotoPath}`;
+                    if (fotoPath.includes('assets/')) {
                         document.getElementById('detailFoto').src = `${base}/${fotoPath}`;
                     } else {
                         document.getElementById('detailFoto').src = `${base}/assets/image/products/${fotoPath}`;
                     }
                 } else {
-                    document.getElementById('detailFoto').src = `${base}/image-profile/defaultProduct.jpg`;
+                    document.getElementById('detailFoto').src = `${base}/assets/image/image-profile/defaultProduct.jpg`;
                 }
 
                 fetchRelatedProducts();
@@ -152,10 +154,12 @@ function renderRelatedProducts() {
     }
 
     itemsToShow.forEach(item => {
-        let relFotoPath = item.foto || 'image-profile/defaultProduct.jpg';
+        let relFotoPath = item.foto || 'assets/image/image-profile/defaultProduct.jpg';
         let relFotoSrc = '';
-        
-        if (relFotoPath.includes('image-profile/') || relFotoPath.includes('assets/')) {
+
+        // Data lama: path tersimpan dgn prefix folder lama → arahkan ke lokasi baru
+        if (relFotoPath.startsWith('image-profile/')) relFotoPath = `assets/image/${relFotoPath}`;
+        if (relFotoPath.includes('assets/')) {
             relFotoSrc = `${base}/${relFotoPath}`;
         } else {
             relFotoSrc = `${base}/assets/image/products/${relFotoPath}`;
@@ -278,7 +282,6 @@ window.buyNow = function(idProduk, hargaSatuan) {
     fd.append('id_produk', idProduk);
     fd.append('harga_produk', hargaSatuan);
     fd.append('jumlah', qty);
-    fd.append('id_pengguna_js', userId);
 
     fetch(`${base}/interface/cart/controller_keranjang.php`, {
         method: 'POST',
@@ -392,7 +395,6 @@ function checkoutProduct() {
     fd.append('id_produk', productId);
     fd.append('harga_produk', currentProductPrice);
     fd.append('jumlah', currentQty);
-    fd.append('id_pengguna_js', userId);
 
     fetch(`${base}/interface/cart/controller_keranjang.php`, {
         method: 'POST',

@@ -1,6 +1,6 @@
 const API       = '/cardhaven/interface/purchase/controller_restok.php';
-const ACTOR_ID  = parseInt(sessionStorage.getItem('id_pengguna') || localStorage.getItem('id_pengguna') || 0);
-const USER_ROLE = parseInt(sessionStorage.getItem('role') || localStorage.getItem('role') || 0);
+const ACTOR_ID  = CardHavenAuth.id();
+const USER_ROLE = CardHavenAuth.role();
 const RESTOK_PER_PAGE = 7;
 let currentPage = 1;
 let searchTimer = null;
@@ -69,8 +69,10 @@ function changeRestokSort() {
 
 function toggleRestokSortOrder() {
     restokSortOrder = restokSortOrder === 'DESC' ? 'ASC' : 'DESC';
-    const btn = document.getElementById('btnRestokSortOrder');
-    if (btn) btn.innerHTML = restokSortOrder === 'DESC' ? 'Descending ↓' : 'Ascending ↑';
+    const icon = document.getElementById('restokSortIcon');
+    if (icon) icon.innerHTML = restokSortOrder === 'ASC'
+        ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+        : '<path d="M12 5v14M19 12l-7 7-7-7"/>';
     applyRestokFilter(1);
 }
 
@@ -311,6 +313,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Shortcut dari dashboard Activity: buka modal PO langsung via ?open_restok=<id>
     const openId = new URLSearchParams(window.location.search).get('open_restok');
     if (openId) openRestokModal(parseInt(openId));
+
+    // Return from the "Add New Product" shortcut: re-open Add PO, restore the
+    // previous form, and add the freshly-created product as a new row.
+    if (typeof chGetReturnCtx === 'function') {
+        const apCtx = chGetReturnCtx();
+        if (apCtx && apCtx.origin === 'addpo') {
+            restoreRestokState(apCtx.state || {});
+            const newProd = chGetNewProduct();
+            if (newProd) injectNewRestokProduct(newProd);
+            chClearShortcut();
+        }
+    }
 });
 
 // Klik di luar modal box (di area overlay) untuk menutup, sama seperti modul Product
@@ -386,23 +400,28 @@ function setupProdukSuggest(rowId) {
     const hidden = document.getElementById(`produkId${rowId}`);
     const box    = document.getElementById(`produkSuggest${rowId}`);
 
-    input.oninput = function () {
-        hidden.value = '';
-        if (this.value.length < 1) { box.style.display = 'none'; return; }
-
+    function triggerSearch() {
         if (!suppHidden.value) {
             box.innerHTML = '<div style="color:#E74C3C; cursor:default;">⚠ Please select a Supplier first!</div>';
             box.style.display = 'block';
             return;
         }
 
-        fetch(`${API}?action=search_produk&search_produk=${encodeURIComponent(this.value)}&id_supplier=${suppHidden.value}&actor_id=${ACTOR_ID}`)
+        const keyword = input.value.trim();
+
+        fetch(`${API}?action=search_produk&search_produk=${encodeURIComponent(keyword)}&id_supplier=${suppHidden.value}&actor_id=${ACTOR_ID}`)
             .then(r => r.json())
             .then(data => {
                 box.innerHTML = '';
-                if (data.length > 0) {
+                
+                let displayData = data;
+                if (keyword === '') {
+                    displayData = data.slice(0, 3);
+                }
+
+                if (displayData.length > 0) {
                     box.style.display = 'block';
-                    data.forEach(item => {
+                    displayData.forEach(item => {
                         const div = document.createElement('div');
                         div.innerHTML = item.nama_produk;
                         div.onclick = () => {
@@ -414,16 +433,126 @@ function setupProdukSuggest(rowId) {
                         };
                         box.appendChild(div);
                     });
+                    
+                    if (keyword === '' && data.length > 3) {
+                        const moreDiv = document.createElement('div');
+                        moreDiv.innerHTML = '<i>Type to search more products...</i>';
+                        moreDiv.style.color = '#888';
+                        moreDiv.style.cursor = 'default';
+                        moreDiv.style.pointerEvents = 'none';
+                        moreDiv.style.fontSize = '0.8rem';
+                        box.appendChild(moreDiv);
+                    }
                 } else {
                     box.innerHTML = '<div style="color:#888; cursor:default;">No product found.</div>';
                     box.style.display = 'block';
                 }
             });
+    }
+
+    input.onfocus = function () {
+        if (this.value.trim() === '') {
+            triggerSearch();
+        }
+    };
+
+    input.onclick = function () {
+        if (this.value.trim() === '' && box.style.display !== 'block') {
+            triggerSearch();
+        }
+    };
+
+    input.oninput = function () {
+        hidden.value = '';
+        triggerSearch();
     };
 }
 
 function closeAddRestokModal() {
     document.getElementById('addRestokModal').style.display = 'none';
+}
+
+// ─── ADD PO: "Add New Product" shortcut ──────────────────────────────────────
+// Snapshot the current Add PO form so it can be restored after the round-trip.
+function collectRestokState() {
+    const rows = [];
+    document.querySelectorAll('#addItemsBody tr.item-row').forEach(tr => {
+        const n = tr.id.replace('itemRow', '');
+        rows.push({
+            id:    document.getElementById(`produkId${n}`)?.value || '',
+            name:  document.getElementById(`produkSearch${n}`)?.value || '',
+            qty:   document.getElementById(`qty${n}`)?.value || '1',
+            harga: document.getElementById(`harga${n}`)?.value || '0',
+        });
+    });
+    return {
+        supplierId:   document.getElementById('addIdSupplier')?.value || '',
+        supplierName: document.getElementById('addSupplierSearch')?.value || '',
+        rows,
+    };
+}
+
+function startAddProductFromRestok() {
+    const idSupplier = document.getElementById('addIdSupplier')?.value || '';
+    if (!idSupplier) {
+        cardhavenAlert('error', 'Select a Supplier First',
+            'Please choose a supplier before adding a new product, so it is linked to this PO.');
+        return;
+    }
+    const state = collectRestokState();
+    chStartAddProductShortcut({
+        origin: 'addpo',
+        supplier: { id: state.supplierId, name: state.supplierName },
+        state,
+    });
+}
+
+// Re-open the Add PO modal and restore a previously captured state.
+function restoreRestokState(state) {
+    openAddRestokModal();                       // resets + adds 1 empty row
+    document.getElementById('addItemsBody').innerHTML = '';
+    itemRowCount = 0;
+
+    if (state.supplierName) document.getElementById('addSupplierSearch').value = state.supplierName;
+    if (state.supplierId)   document.getElementById('addIdSupplier').value = state.supplierId;
+
+    const rows = Array.isArray(state.rows) ? state.rows : [];
+    if (rows.length === 0) {
+        addItemRow();
+    } else {
+        rows.forEach(r => {
+            addItemRow();
+            const n = itemRowCount;
+            document.getElementById(`produkSearch${n}`).value = r.name || '';
+            document.getElementById(`produkId${n}`).value     = r.id || '';
+            document.getElementById(`qty${n}`).value          = r.qty || '1';
+            document.getElementById(`harga${n}`).value        = r.harga || '0';
+            recalcRow(n);
+        });
+    }
+}
+
+// Add a freshly-created product (looked up by name for this supplier) as a new row.
+function injectNewRestokProduct(newProd) {
+    const idSupplier = document.getElementById('addIdSupplier')?.value || '';
+    if (!newProd || !newProd.nama_produk || !idSupplier) return;
+
+    fetch(`${API}?action=search_produk&search_produk=${encodeURIComponent(newProd.nama_produk)}&id_supplier=${idSupplier}&actor_id=${ACTOR_ID}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) return;
+            const wanted = newProd.nama_produk.trim().toLowerCase();
+            const match = data.find(p => (p.nama_produk || '').trim().toLowerCase() === wanted) || data[0];
+
+            addItemRow();
+            const n = itemRowCount;
+            document.getElementById(`produkSearch${n}`).value = match.nama_produk;
+            document.getElementById(`produkId${n}`).value     = match.id_produk;
+            document.getElementById(`qty${n}`).value          = 1;
+            document.getElementById(`harga${n}`).value        = match.harga_beli ?? 0;
+            recalcRow(n);
+        })
+        .catch(() => {});
 }
 
 // ─── ADD PO: baris item dinamis ──────────────────────────────────────────────
@@ -441,9 +570,16 @@ function addItemRow() {
                 <input type="hidden" id="produkId${rowId}">
                 <div id="produkSuggest${rowId}" class="suggestion-box"></div>
             </div>
+            <div class="row-error" id="errProduk${rowId}" style="color:#E74C3C; font-size:0.72rem; margin-top:3px; display:none;"></div>
         </td>
-        <td><input type="number" min="1" value="1" id="qty${rowId}" oninput="recalcRow(${rowId})"></td>
-        <td><input type="number" min="0" step="0.01" value="0" id="harga${rowId}" oninput="recalcRow(${rowId})"></td>
+        <td>
+            <input type="number" min="1" value="1" id="qty${rowId}" oninput="recalcRow(${rowId})">
+            <div class="row-error" id="errQty${rowId}" style="color:#E74C3C; font-size:0.72rem; margin-top:3px; display:none;"></div>
+        </td>
+        <td>
+            <input type="number" min="0" step="0.01" value="0" id="harga${rowId}" oninput="recalcRow(${rowId})">
+            <div class="row-error" id="errHarga${rowId}" style="color:#E74C3C; font-size:0.72rem; margin-top:3px; display:none;"></div>
+        </td>
         <td style="text-align:right; font-weight:600;" id="subtotal${rowId}">Rp0</td>
         <td><button type="button" class="btn-remove-row" onclick="removeItemRow(${rowId})">&times;</button></td>
     `;
@@ -479,53 +615,73 @@ function recalcAddTotal() {
 
 // ─── ADD PO: submit ──────────────────────────────────────────────────────────
 function submitAddRestok() {
-   const suppInputEl = document.getElementById('addSupplierSearch');
-const id_supplier = document.getElementById('addIdSupplier').value;
-let errors = [];
+    const suppInputEl = document.getElementById('addSupplierSearch');
+    const id_supplier = document.getElementById('addIdSupplier').value;
+    let hasError = false;
 
-// Reset semua border dulu
-suppInputEl.style.border = '';
-document.querySelectorAll('#addItemsBody tr.item-row').forEach(tr => {
-    tr.querySelectorAll('input').forEach(el => el.style.border = '');
-});
+    // Reset semua border & pesan error dulu
+    suppInputEl.style.border = '';
+    clearError(suppInputEl);
+    document.getElementById('errNoItems').style.display = 'none';
+    document.querySelectorAll('#addItemsBody tr.item-row').forEach(tr => {
+        tr.querySelectorAll('input').forEach(el => el.style.border = '');
+        tr.querySelectorAll('.row-error').forEach(el => { el.style.display = 'none'; el.textContent = ''; });
+    });
 
-if (!id_supplier) {
-    showError(suppInputEl, 'Supplier is required.');
-    errors.push('Supplier is required.');
-}
-
-const rows = document.querySelectorAll('#addItemsBody tr.item-row');
-if (rows.length === 0) {
-    errors.push('Add at least one item.');
-}
-
-const items = [];
-rows.forEach((tr, idx) => {
-    const n = tr.id.replace('itemRow', '');
-    const selProduk  = document.getElementById(`produkId${n}`);
-    const inputQty   = document.getElementById(`qty${n}`);
-    const inputHarga = document.getElementById(`harga${n}`);
-
-    const id_produk     = selProduk.value;
-    const jumlah_barang = parseInt(inputQty.value) || 0;
-    const harga_beli    = parseFloat(inputHarga.value) || 0;
-
-    let rowErrors = [];
-    if (!id_produk)        { document.getElementById(`produkSearch${n}`).style.border = '2px solid #E74C3C'; rowErrors.push('product'); }
-    if (jumlah_barang < 1) { inputQty.style.border   = '2px solid #E74C3C'; rowErrors.push('quantity'); }
-    if (harga_beli <= 0)   { inputHarga.style.border = '2px solid #E74C3C'; rowErrors.push('price'); }
-
-    if (rowErrors.length > 0) {
-        errors.push(`Row ${idx + 1}: ${rowErrors.join(', ')} is required.`);
-    } else {
-        items.push({ id_produk, jumlah_barang, harga_beli });
+    if (!id_supplier) {
+        showError(suppInputEl, 'Supplier is required.');
+        hasError = true;
     }
-});
 
-if (errors.length > 0) {
-    cardhavenAlert('error', 'Please fix the following:', errors.join('\n'));
-    return;
-}
+    const rows = document.querySelectorAll('#addItemsBody tr.item-row');
+
+    const items = [];
+    rows.forEach((tr) => {
+        const n = tr.id.replace('itemRow', '');
+        const selProduk  = document.getElementById(`produkId${n}`);
+        const inputQty   = document.getElementById(`qty${n}`);
+        const inputHarga = document.getElementById(`harga${n}`);
+
+        const id_produk     = selProduk.value;
+        const jumlah_barang = parseInt(inputQty.value) || 0;
+        const harga_beli    = parseFloat(inputHarga.value) || 0;
+
+        let rowHasError = false;
+
+        if (!id_produk) {
+            document.getElementById(`produkSearch${n}`).style.border = '2px solid #E74C3C';
+            const err = document.getElementById(`errProduk${n}`);
+            err.textContent = 'Product is required.';
+            err.style.display = 'block';
+            rowHasError = true;
+        }
+        if (jumlah_barang < 1) {
+            inputQty.style.border = '2px solid #E74C3C';
+            const err = document.getElementById(`errQty${n}`);
+            err.textContent = 'Min. 1.';
+            err.style.display = 'block';
+            rowHasError = true;
+        }
+        if (harga_beli <= 0) {
+            inputHarga.style.border = '2px solid #E74C3C';
+            const err = document.getElementById(`errHarga${n}`);
+            err.textContent = 'Price is required.';
+            err.style.display = 'block';
+            rowHasError = true;
+        }
+
+        if (rowHasError) {
+            hasError = true;
+        } else {
+            items.push({ id_produk, jumlah_barang, harga_beli });
+        }
+    });
+
+    if (rows.length === 0) {
+        document.getElementById('errNoItems').style.display = 'block';
+        hasError = true;
+    }
+    if (hasError) return; // Berhenti diam-diam, pesan udah kelihatan di bawah tiap field.
 
     const body = new FormData();
     body.append('action', 'create');

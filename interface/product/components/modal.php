@@ -25,9 +25,10 @@
                         <option value="Playmat">Playmat</option>
                         <option value="Binder">Binder</option>
                         <option value="Deck Box">Deck Box</option>
-                        <option value="Dice">Accessory</option>
-                        <option value="Token">Card Protector</option>
+                        <option value="Accessory">Accessory</option>
+                        <option value="Card Protector">Card Protector</option>
                         <option value="Toploader">Toploader</option>
+                        <option value="Storage Box">Storage Box</option>
                         <option value="Other">Other</option>
                     </select>
                     <div class="error-message"></div>
@@ -88,7 +89,7 @@
                 </div>
                 <div class="modal-form-group">
                     <label>Stock <span style="color: #E74C3C;">*</span></label>
-                    <input type="number" min="1" name="stok" id="pStok" class="modal-input" placeholder="1">
+                    <input type="number" min="0" name="stok" id="pStok" class="modal-input" placeholder="1">
                     <div class="error-message"></div>
                 </div>
                 <div class="modal-form-group">

@@ -33,7 +33,7 @@
             </div>
         </div>
             <div class="nav-profile" style="position: relative;"> 
-                <button onclick="window.location.replace('/CardHaven/register')" 
+                <button onclick="window.location.replace('/CardHaven/login')" 
                 class="sign-in-button coolveticaa" id="btn-sign" style="height: 70%; width: 30%; border-radius: 9999px; background: var(--bg-gradient); color: white; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">
                     Sign In
                 </button>
@@ -41,7 +41,7 @@
                     <h3 class="coolveticaa" id="namaUser" style="color: var(--primary-color); font-size: 1.25rem; margin-right: 0.75rem;"></h3>
                     
                     <div id="avatar-trigger" style="height: 100%; aspect-ratio: 1/1; background-color: blue; border-radius: 9999px; overflow: hidden; border: 1px solid var(--primary-color); cursor: pointer;">
-                        <img src="https://i.pinimg.com/736x/5e/14/90/5e149094251c9316fc696e7aeba7b2b1.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+                        <img src="/cardhaven/assets/image/defaultpfp.jpg" style="width: 100%; height: 100%; object-fit: cover;">
                     </div>
                     
                     <div style="height: 80%; aspect-ratio: 1/1; display: flex; align-items: center;">
@@ -55,7 +55,7 @@
                     <div class="popup-body">
                         <div class="profile-summary">
                             <div class="profile-avatar-large">
-                                <img src="https://i.pinimg.com/736x/5e/14/90/5e149094251c9316fc696e7aeba7b2b1.jpg" alt="Avatar">
+                                <img src="/cardhaven/assets/image/user.svg" alt="Avatar">
                             </div>
                             <div class="profile-info">
                                 <h4 id="popNamaUser">Username</h4>
@@ -91,7 +91,7 @@
                 <div id="popup-mailbox" class="modal-popup coolveticaa">
                     <div class="popup-header">
                         <button id="btn-back-to-profile" class="btn-back">
-                            <img src="/cardhaven/assets/image/arrow-back.svg" alt="back">
+                            <img src="/cardhaven/assets/image/left-arrow.svg" alt="back" style="filter: invert(30%) sepia(75%) saturate(8090%) hue-rotate(173deg) brightness(64%) contrast(200%);">
                         </button>
                         <h4>Mailbox</h4>
                         <button id="btn-nav-mark-all" class="mailbox-markall" title="Mark all as read">Mark all read</button>
@@ -339,7 +339,8 @@
 </style>
 
 <script>
-    const isUser = localStorage.getItem('username') || sessionStorage.getItem('username');
+    // Identitas diambil dari PHP session lewat CardHavenAuth (window.CH_AUTH).
+    const isUser = CardHavenAuth.isLoggedIn() ? CardHavenAuth.username() : '';
     const signBtn = document.getElementById('btn-sign');
     const namaUser = document.getElementById('namaUser');
     const popNamaUser = document.getElementById('popNamaUser');
@@ -352,6 +353,32 @@
     const btnTriggerMailbox = document.getElementById('btn-trigger-mailbox');
     const btnBackToProfile = document.getElementById('btn-back-to-profile');
     const btnLogout = document.getElementById('btn-logout');
+
+    // ── Avatar anti-kedip (flicker) ──────────────────────────────────────────
+    // Dulu foto profil baru muncul SETELAH fetch selesai, jadi tiap pindah
+    // halaman kelihatan gambar default dulu baru foto asli. Sekarang hasil fetch
+    // di-cache di localStorage per-user, lalu dipasang langsung saat halaman
+    // diparse (sinkron) sehingga foto langsung benar tanpa kedip.
+    const AVATAR_CACHE_KEY = 'ch_avatar';
+    const DEFAULT_AVATAR = '/cardhaven/assets/image/user.svg';
+
+    function applyAvatar(src) {
+        document.querySelectorAll('#avatar-trigger img, .profile-avatar-large img')
+            .forEach(img => { if (img.getAttribute('src') !== src) img.src = src; });
+    }
+
+    function readAvatarCache() {
+        try {
+            const obj = JSON.parse(localStorage.getItem(AVATAR_CACHE_KEY) || 'null');
+            // Hanya pakai kalau cache milik user yang sedang login (hindari bocor antar akun).
+            return (obj && String(obj.id) === String(CardHavenAuth.id())) ? obj.src : null;
+        } catch (e) { return null; }
+    }
+
+    // Pasang secepatnya (parse-time), sebelum fetch, supaya tidak ada kedip.
+    if (CardHavenAuth.isLoggedIn()) {
+        applyAvatar(readAvatarCache() || DEFAULT_AVATAR);
+    }
 
     // Cek Session Login
     if(isUser){
@@ -379,11 +406,11 @@
     });
 
     async function fetchUserData() {
-        const idPengguna = localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
-        if (!idPengguna) return;
+        if (!CardHavenAuth.isLoggedIn()) return;
 
         try {
-            const response = await fetch(`/cardhaven/interface/page-customer/controller.php?id_pengguna=${idPengguna}`);
+            // Tanpa id_pengguna di URL — server memakai id dari session.
+            const response = await fetch(`/cardhaven/interface/page-customer/controller.php`);
             if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
 
             const result = await response.json();
@@ -391,12 +418,14 @@
             if (result.status === 'success' && result.data) {
                 // ✅ Pakai variabel yang benar (result.data, bukan user)
                 const avatarSrc = result.data.foto_profil
-                    ? `/cardhaven/${result.data.foto_profil}`
-                    : '/cardhaven/assets/image/user.svg';
+                    ? `/cardhaven/assets/image/image-profile/${result.data.foto_profil}`
+                    : DEFAULT_AVATAR;
 
-                // ✅ Set ke semua elemen avatar di navbar
-                const avatarImgs = document.querySelectorAll('#avatar-trigger img, .profile-avatar-large img');
-                avatarImgs.forEach(img => img.src = avatarSrc);
+                // Pasang ke semua elemen avatar + simpan ke cache untuk halaman berikutnya.
+                applyAvatar(avatarSrc);
+                try {
+                    localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify({ id: CardHavenAuth.id(), src: avatarSrc }));
+                } catch (e) { /* localStorage penuh/diblokir — abaikan, fetch tetap jalan */ }
             }
         } catch (error) {
             console.error('Error fetching user data:', error);
@@ -434,16 +463,16 @@
             "Are you sure you want to logout from your account?",
             "Logout",
             () => {
-                localStorage.clear();
-                sessionStorage.clear();
-                window.location.href = "/CardHaven/login";
+                // Session dihapus di server; browser tidak menyimpan identitas apa pun.
+                try { localStorage.removeItem(AVATAR_CACHE_KEY); } catch (e) {}
+                CardHavenAuth.logout();
             }
         );
     });
 
     // ── Mailbox / Notifikasi ──────────────────────────────────────────────
     const NAV_MAIL_API = '/cardhaven/interface/page-profile/controller/MailController.php';
-    const navMailUserId = localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
+    const navMailUserId = CardHavenAuth.id() || null;
 
     // Notif lama tersimpan dalam Bahasa Indonesia; terjemahkan frasa template ke Inggris.
     const NAV_NOTIF_TR = [
@@ -570,7 +599,7 @@ if (searchInput) {
                 .then(res => {
                     if (res.status === 'success' && res.data.length > 0) {
                         searchSuggestions.innerHTML = res.data.map(p => {
-                            let foto = p.foto ? `/cardhaven/assets/image/products/${p.foto}` : `/cardhaven/image-profile/defaultProduct.jpg`;
+                            let foto = p.foto ? `/cardhaven/assets/image/products/${p.foto}` : `/cardhaven/assets/image/image-profile/defaultProduct.jpg`;
                             return `
                             <div class="suggest-item" onclick="window.location.href='/CardHaven/home/productdetail?id_produk=${p.id_produk}'" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.2s;">
                                 <img src="${foto}" style="width: 35px; height: 45px; object-fit: contain; border-radius: 4px;">

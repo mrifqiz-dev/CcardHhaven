@@ -1,17 +1,15 @@
 <?php
-session_start();
 ini_set('display_errors', 0);
 error_reporting(0);
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/CardHaven/connection.php';
+require_once __DIR__ . '/../../auth/session.php';
 
 $action = $_GET['action'] ?? '';
-$role = (int)($_GET['role'] ?? 0);
 
-// Laporan Restok cuma boleh diliat Owner (role = 3)
-if ($role !== 3) {
-    die(json_encode(["status" => "error", "message" => "Unauthorized access."]));
-}
+// Laporan Restok cuma boleh diliat Owner (role = 3).
+// Role diambil dari session, bukan dari ?role= di URL yang bisa dipalsukan.
+auth_api_require_role([ROLE_OWNER]);
 
 $tahun  = (int)($_GET['tahun'] ?? 0);
 $bulan  = (int)($_GET['bulan'] ?? 0);
@@ -97,31 +95,54 @@ switch ($action) {
 
     case 'export_excel':
         header("Content-Type: application/vnd.ms-excel");
-        header("Content-Disposition: attachment; filename=Restock_Report.xls");
+        $tanggalSekarang = date('d-m-Y');
+        header("Content-Disposition: attachment; filename=Laporan_Restock_{$tanggalSekarang}.xls");
         header("Pragma: no-cache"); header("Expires: 0");
 
         $data = getFilteredAndSortedData($conn, $tahun, $bulan, $search, $sortBy, $sortOrder);
 
-        echo "<table>";
-        echo "<tr><td colspan='7' style='font-size:18pt;font-weight:bold;color:#0F3891;'>CardHaven</td></tr>";
-        echo "<tr><td colspan='7' style='font-weight:bold;'>Restock Report</td></tr>";
-        echo "<tr><td colspan='7'>Generated on: " . date('d-m-Y H:i') . "</td></tr>";
+        // Bagian Kop Laporan
+        echo "<table style='font-family: sans-serif;'>";
+        echo "<tr><td colspan='6' style='font-size:18pt; font-weight:bold; color:#0F3891; text-align:center;'>CardHaven</td></tr>";
+        echo "<tr><td colspan='6' style='font-weight:bold; font-size:14pt; text-align:center;'>Restock Purchase Report</td></tr>";
+        echo "<tr><td colspan='6' style='text-align:center; color:#666;'>Generated on: " . date('d-m-Y H:i') . "</td></tr>";
+        echo "<tr><td colspan='6'></td></tr>";
         echo "</table>";
-        echo "<table border='1'>";
-        echo "<tr><th>No</th><th>Date</th><th>Supplier</th><th>Product List</th><th>Total Qty</th><th>Total Purchase</th></tr>";
+        
+        // Bagian Tabel Data
+        echo "<table border='1' style='font-family: sans-serif; border-collapse: collapse;'>";
+        echo "<tr style='background-color:#0F3891; color:#ffffff; font-weight:bold; text-align:center;'>";
+        echo "<th>No</th><th>Date</th><th>Supplier</th><th>Product List</th><th>Total Qty</th><th>Total Purchase</th>";
+        echo "</tr>";
 
         $no = 1;
+        $totalQty = 0;
+        $totalNominal = 0;
+        
         foreach ($data as $row) {
             $tgl = ($row['tanggal_restok'] instanceof DateTime) ? $row['tanggal_restok']->format('d-m-Y') : '-';
-            echo "<tr>";
-            echo "<td>" . $no++ . "</td>";
-            echo "<td>" . $tgl . "</td>";
-            echo "<td>" . $row['nama_suplier'] . "</td>";
-            echo "<td>" . $row['daftar_produk'] . "</td>";
-            echo "<td>" . $row['total_barang'] . "</td>";
-            echo "<td>Rp " . number_format($row['total_harga'], 0, ',', '.') . "</td>";
+            $totalQty += (int)$row['total_barang'];
+            $totalNominal += (float)$row['total_harga'];
+            
+            $bgColor = ($no % 2 == 0) ? '#dee8fc' : '#ffffff';
+            
+            echo "<tr style='background-color: {$bgColor};'>";
+            echo "<td style='text-align:center;'>" . $no++ . "</td>";
+            echo "<td style='text-align:center;'>" . $tgl . "</td>";
+            echo "<td><b>" . htmlspecialchars($row['nama_suplier']) . "</b></td>";
+            echo "<td>" . htmlspecialchars($row['daftar_produk']) . "</td>";
+            echo "<td style='text-align:center;'>" . $row['total_barang'] . "</td>";
+            echo "<td style='text-align:right;'>Rp " . number_format($row['total_harga'], 0, ',', '.') . "</td>";
             echo "</tr>";
         }
+        
+        // Bagian Grand Total
+        echo "<tr style='background-color:#f2f2f2; font-weight:bold;'>";
+        echo "<td colspan='4' style='text-align:right;'>GRAND TOTAL</td>";
+        echo "<td style='text-align:center;'>" . number_format($totalQty, 0, ',', '.') . "</td>";
+        echo "<td style='text-align:right;'>Rp " . number_format($totalNominal, 0, ',', '.') . "</td>";
+        echo "</tr>";
+        
         echo "</table>";
         break;
 

@@ -165,6 +165,41 @@ function _aeForceClose() {
     document.body.style.overflow = '';
 }
 
+// ── "Add New Product" shortcut (Add Event) ────────────────────────────────────
+function aeCollectState() {
+    return {
+        nama_event:       document.getElementById('ae_nama_event')?.value      ?? '',
+        tipe_event:       document.getElementById('ae_tipe_event')?.value      ?? '',
+        tanggal_mulai:    document.getElementById('ae_tanggal_mulai')?.value    ?? '',
+        tanggal_berakhir: document.getElementById('ae_tanggal_berakhir')?.value ?? '',
+        tanggal_sampai:   document.getElementById('ae_tanggal_sampai')?.value   ?? '',
+        persen_diskon:    document.getElementById('ae_persen_diskon')?.value    ?? '',
+        maks_pembelian:   document.getElementById('ae_maks_pembelian')?.value   ?? '',
+        productList:      aeProductList,
+    };
+}
+
+function aeStartAddProduct() {
+    chStartAddProductShortcut({ origin: 'addevent', state: aeCollectState() });
+}
+
+// Restore a previously captured Add Event form (called after returning from the
+// Product page). Assumes the Add Event modal HTML is already in the DOM.
+function aeRestoreState(state) {
+    if (!state) return;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+    set('ae_nama_event',       state.nama_event);
+    set('ae_tipe_event',       state.tipe_event);
+    set('ae_tanggal_mulai',    state.tanggal_mulai);
+    set('ae_tanggal_berakhir', state.tanggal_berakhir);
+    set('ae_tanggal_sampai',   state.tanggal_sampai);
+    set('ae_persen_diskon',    state.persen_diskon);
+    set('ae_maks_pembelian',   state.maks_pembelian);
+    aeProductList = Array.isArray(state.productList) ? state.productList : [];
+    aeOnTypeChange();          // show/hide pre-order arrival row
+    aeRenderProductTable();
+}
+
 function _aeHasAnyInput() {
     const fields = [
         'ae_nama_event', 'ae_tipe_event', 'ae_tanggal_mulai',
@@ -218,11 +253,12 @@ function setBatasTanggalMinimal() {
         const currentStartVal = eeStart.value; 
         
         if (currentStartVal) {
-            // Pas modal kebuka, End Date & Arrive Date langsung dikunci minimal sesuai Start Date-nya!
             if (eeEnd) eeEnd.min = currentStartVal;
-            if (eeArrive) eeArrive.min = currentStartVal;
+            if (eeArrive) {
+                const currentEndVal = eeEnd ? eeEnd.value : null;
+                eeArrive.min = currentEndVal || currentStartVal;
+            }
         } else {
-            // Kalau misal tanggal mulainya kosong, default-nya pakai hari ini
             if (eeEnd) eeEnd.min = hariIni;
             if (eeArrive) eeArrive.min = hariIni;
         }
@@ -232,17 +268,26 @@ function setBatasTanggalMinimal() {
 function aeOnStartDateChange() {
     const startVal = document.getElementById('ae_tanggal_mulai').value;
     const endInput = document.getElementById('ae_tanggal_berakhir');
-    const arriveInput = document.getElementById('ae_tanggal_sampai');
     
     if (startVal) {
         if (endInput) endInput.min = startVal;
-        if (arriveInput) arriveInput.min = startVal;
         
-        // Reset kalau tanggal berakhir atau sampai malah lebih kecil dari tanggal mulai
-        if ((endInput && endInput.value && endInput.value < startVal) || 
-            (arriveInput && arriveInput.value && arriveInput.value < startVal)) {
-            if (endInput) endInput.value = '';
-            if (arriveInput) arriveInput.value = '';
+        // Reset kalau tanggal berakhir malah lebih kecil dari tanggal mulai
+        if (endInput && endInput.value && endInput.value < startVal) {
+            endInput.value = '';
+        }
+    }
+}
+
+function aeOnEndDateChange() {
+    const endVal = document.getElementById('ae_tanggal_berakhir').value;
+    const arriveInput = document.getElementById('ae_tanggal_sampai');
+    
+    if (endVal && arriveInput) {
+        arriveInput.min = endVal;
+        
+        if (arriveInput.value && arriveInput.value < endVal) {
+            arriveInput.value = '';
         }
     }
 }
@@ -442,18 +487,22 @@ function aeRenderProductTable() {
     }
 
     wrap.style.display = '';
-    wrap.style.marginLeft = '3rem';
-    
+
+    // Satu sel "Action" berisi kedua tombol, mengikuti pola tabel di modal Edit
+    // (header tabel memang 5 kolom: No/Product/Price/Stock/Action).
     tbody.innerHTML = aeProductList.map((p, i) => {
-        const subtotal = Math.round(p.harga_event * p.stok_event);
         return `
             <tr>
                 <td>${i + 1}</td>
                 <td style="font-weight:600;">${escHtml(p.nama_produk)}</td>
                 <td>Rp ${Math.round(p.harga_event).toLocaleString('id-ID')}</td>
                 <td>${p.stok_event}</td>
-                <td><button class="btn-edit-icon" onclick="aeEditProductStock(${i})" title="Edit Stock">✏️</button></td>
-                <td><button class="btn-delete-icon" onclick="aeRemoveProduct(${i})" title="Delete">🗑</button></td>
+                <td>
+                    <div class="btn-action-group">
+                        <button class="btn-edit-icon" onclick="aeEditProductStock(${i})" title="Edit Stock"><img src="/cardhaven/assets/image/edit.svg" alt="Edit"></button>
+                        <button class="btn-delete-icon" onclick="aeRemoveProduct(${i})" title="Delete"><img src="/cardhaven/assets/image/delete.svg" alt="Delete"></button>
+                    </div>
+                </td>
             </tr>
         `;
     }).join('');
@@ -495,6 +544,7 @@ async function aeSubmitEvent() {
     if (diskon < 1 )                            { aeSetError('ae_persen_diskon',    'err_persen_diskon',    'Discount can not less than 1.'); valid = false; }
     if (!maks || parseInt(maks) <= 0)           { aeSetError('ae_maks_pembelian',   'err_maks_pembelian',   'Max purchase can not less than 0.'); valid = false; }
     if (tipe === 'preorder' && !sampai)         { aeSetError('ae_tanggal_sampai',   'err_tanggal_sampai',   'Estimated arrival time are required for pre order.'); valid = false; }
+    if (tipe === 'preorder' && sampai && berakhir && sampai <= berakhir) { aeSetError('ae_tanggal_sampai', 'err_tanggal_sampai', 'Estimated arrival must be after the end date.'); valid = false; }
     if (aeProductList.length === 0) {
         const el = document.getElementById('err_product_list');
         if (el) el.textContent = 'You should add at least 1 item.';
@@ -531,7 +581,7 @@ async function aeSubmitEvent() {
         persen_diskon:    parseFloat(diskon),
         maks_pembelian:   parseInt(maks, 10),
         status_event:     statusEvent, // <-- Lempar status ke PHP
-        id_karyawan:      sessionStorage.getItem('id_pengguna') || localStorage.getItem('id_pengguna'),
+        id_karyawan:      CardHavenAuth.id() || null,
         products: aeProductList.map(p => ({
             id_produk:   p.id_produk,
             harga_event: Math.round(((100 - parseFloat(diskon)) * p.harga_jual) / 100),
@@ -587,31 +637,63 @@ function eeOnTypeChange() {
     }
 }
 
+// ── "Add New Product" shortcut (Edit Event) ───────────────────────────────────
+// Event products are already persisted server-side; we only preserve the (as yet
+// unsaved) header field edits so nothing typed is lost during the round-trip.
+function eeCollectState() {
+    return {
+        nama_event:       document.getElementById('ee_nama_event')?.value      ?? '',
+        tipe_event:       document.getElementById('ee_tipe_event')?.value      ?? '',
+        tanggal_mulai:    document.getElementById('ee_tanggal_mulai')?.value    ?? '',
+        tanggal_berakhir: document.getElementById('ee_tanggal_berakhir')?.value ?? '',
+        tanggal_sampai:   document.getElementById('ee_tanggal_sampai')?.value   ?? '',
+        persen_diskon:    document.getElementById('ee_persen_diskon')?.value    ?? '',
+        maks_pembelian:   document.getElementById('ee_maks_pembelian')?.value   ?? '',
+    };
+}
+
+function eeStartAddProduct(idEvent) {
+    chStartAddProductShortcut({ origin: 'editevent', eventId: idEvent, state: eeCollectState() });
+}
+
+function eeRestoreState(state) {
+    if (!state) return;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+    set('ee_nama_event',       state.nama_event);
+    set('ee_tipe_event',       state.tipe_event);
+    set('ee_tanggal_mulai',    state.tanggal_mulai);
+    set('ee_tanggal_berakhir', state.tanggal_berakhir);
+    set('ee_tanggal_sampai',   state.tanggal_sampai);
+    set('ee_persen_diskon',    state.persen_diskon);
+    set('ee_maks_pembelian',   state.maks_pembelian);
+    eeOnTypeChange();
+}
+
 function eeOnStartDateChange() {
     const startInput = document.getElementById('ee_tanggal_mulai');
-    if (!startInput) return; // Jaga-jaga kalau input start tidak ditemukan
+    if (!startInput) return;
 
     const startVal    = startInput.value;
     const endInput    = document.getElementById('ee_tanggal_berakhir');
-    const arriveInput = document.getElementById('ee_tanggal_sampai');
 
     if (startVal) {
-        // 1. Validasi untuk End Date (Tanggal Berakhir)
         if (endInput) {
             endInput.min = startVal;
-            // Reset kalau nilai end date melanggar aturan (lebih kecil dari start date)
             if (endInput.value && endInput.value < startVal) {
                 endInput.value = '';
             }
         }
-        
-        // 2. Validasi untuk Arrive Date (Tanggal Sampai / Estimasi)
-        if (arriveInput) {
-            arriveInput.min = startVal;
-            // Reset juga nilai arrive date kalau melanggar aturan (lebih kecil dari start date)
-            if (arriveInput.value && arriveInput.value < startVal) {
-                arriveInput.value = '';
-            }
+    }
+}
+
+function eeOnEndDateChange() {
+    const endVal = document.getElementById('ee_tanggal_berakhir').value;
+    const arriveInput = document.getElementById('ee_tanggal_sampai');
+    
+    if (endVal && arriveInput) {
+        arriveInput.min = endVal;
+        if (arriveInput.value && arriveInput.value < endVal) {
+            arriveInput.value = '';
         }
     }
 }
@@ -905,6 +987,7 @@ async function eeSubmitEvent(idEvent) {
     if (diskon === '')                        { eeSetError('ee_persen_diskon',    'ee_err_persen_diskon',    'The "Discount" field is required.'); valid = false; }
     if (!maks || parseInt(maks) <= 0)         { eeSetError('ee_maks_pembelian',   'ee_err_maks_pembelian',   'Max purchase.'); valid = false; }
     if (tipe === 'preorder' && !sampai)       { eeSetError('ee_tanggal_sampai',   'ee_err_tanggal_sampai',   'The "Estimated Arrival" field must be filled out for pre-orders.'); valid = false; }
+    if (tipe === 'preorder' && sampai && berakhir && sampai <= berakhir) { eeSetError('ee_tanggal_sampai', 'ee_err_tanggal_sampai', 'Estimated arrival must be after the end date.'); valid = false; }
 
     if (!valid) return;
 
@@ -1196,6 +1279,7 @@ function parseInitialUrl() {
     if (urlParams.has('dir'))    currentEventSortDir = urlParams.get('dir');
 
     const initialPage = urlParams.has('page') ? parseInt(urlParams.get('page')) : 1;
+    updateSortUI();
     applyEventFilters(initialPage);
 }
 
@@ -1220,11 +1304,19 @@ function applyEventFilters(page = 1) {
     params.append('dir', currentEventSortDir);
 
     const tbody = document.getElementById('event-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="padding: 30px; text-align: center; color:#173C99; font-weight:bold;">Loading data...</td></tr>';
+    if (tbody) {
+        tbody.style.opacity = '0.5';
+        tbody.style.pointerEvents = 'none';
+        tbody.style.transition = 'opacity 0.2s ease';
+    }
 
     fetch('/cardhaven/interface/event/apifetch.php?' + params.toString())
         .then(res => res.json())
         .then(res => {
+            if (tbody) {
+                tbody.style.opacity = '1';
+                tbody.style.pointerEvents = 'auto';
+            }
             if(res.status === 'success') {
                 // PERBAIKAN: Kirim res.page ke fungsi render agar Nomor Urut bisa dihitung!
                 renderEventTable(res.data, res.page);
@@ -1235,11 +1327,19 @@ function applyEventFilters(page = 1) {
                 stateParams.delete('action');
                 window.history.pushState({}, '', '?' + stateParams.toString());
             } else {
+                if (tbody) {
+                    tbody.style.opacity = '1';
+                    tbody.style.pointerEvents = 'auto';
+                }
                 console.error("Backend Error:", res.msg);
                 if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="padding: 30px; text-align: center; color:red;">Gagal memuat data: ${res.msg}</td></tr>`;
             }
         })
         .catch(err => {
+            if (tbody) {
+                tbody.style.opacity = '1';
+                tbody.style.pointerEvents = 'auto';
+            }
             console.error("Fetch Error:", err);
             if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="padding: 30px; text-align: center; color:red;">Terjadi kesalahan sistem. Cek Console.</td></tr>';
         });
@@ -1323,8 +1423,20 @@ function renderEventTable(data, currentPage = 1) {
     tbody.innerHTML = html;
 }
 
+function updateSortUI() {
+    const iconEl = document.getElementById('sortDirIcon');
+    if (iconEl) {
+        if (currentEventSortDir === 'asc') {
+            iconEl.innerHTML = '<path d="M12 19V5M5 12l7-7 7 7"/>';
+        } else {
+            iconEl.innerHTML = '<path d="M12 5v14M19 12l-7 7-7-7"/>';
+        }
+    }
+}
+
 function toggleEventSortDir() {
     currentEventSortDir = currentEventSortDir === 'desc' ? 'asc' : 'desc';
+    updateSortUI();
     applyEventFilters(1);
 }
 
@@ -1367,6 +1479,46 @@ function renderPaginationUI(current, total) {
 }
 
 // Jalankan ketika halaman ter-load
+// ── Return from the "Add New Product" shortcut ────────────────────────────────
+// Look up the freshly-created product by name and pre-select it in the event's
+// Search Product box (staff then enter the event stock and click "+ Add Product").
+async function chEventSelectNewProduct(newProd, prefix) {
+    try {
+        const res  = await fetch(`${SEARCH_URL}?action=search_produk&q=${encodeURIComponent(newProd.nama_produk)}`);
+        const list = await res.json();
+        if (!Array.isArray(list) || list.length === 0) return;
+        const wanted = newProd.nama_produk.trim().toLowerCase();
+        const match  = list.find(p => (p.nama_produk || '').trim().toLowerCase() === wanted) || list[0];
+        if (prefix === 'ae') {
+            aeSelectProduct(match.id_produk, match.nama_produk, match.harga_jual, match.stok);
+        } else {
+            eeSelectProduct(match.id_produk, match.nama_produk, match.harga_jual, match.stok);
+        }
+    } catch (e) {
+        console.error('[Event shortcut] product lookup failed', e);
+    }
+}
+
+async function chHandleEventReturn() {
+    if (typeof chGetReturnCtx !== 'function') return;
+    const apCtx = chGetReturnCtx();
+    if (!apCtx) return;
+
+    if (apCtx.origin === 'addevent') {
+        await openAddEventModal();
+        aeRestoreState(apCtx.state || {});
+        const newProd = chGetNewProduct();
+        if (newProd) await chEventSelectNewProduct(newProd, 'ae');
+        chClearShortcut();
+    } else if (apCtx.origin === 'editevent') {
+        await openEditModal(apCtx.eventId);
+        eeRestoreState(apCtx.state || {});
+        const newProd = chGetNewProduct();
+        if (newProd) await chEventSelectNewProduct(newProd, 'ee');
+        chClearShortcut();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     parseInitialUrl();
 
@@ -1379,4 +1531,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    chHandleEventReturn();
 });

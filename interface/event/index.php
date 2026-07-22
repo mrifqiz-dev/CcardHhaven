@@ -21,9 +21,9 @@ $sort   = $_GET['sort'] ?? 'date';
         /* CSS Minimalis untuk Toolbar agar sejajar dengan desainmu */
         .event-toolbar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
         .filter-input, .filter-select {
-            padding: 8px 15px; border: 1px solid var(--primary-color, #173C99);
+            padding: 8px 36px 8px 15px; border: 1px solid var(--primary-color, #173C99);
             border-radius: 9999px; outline: none; color: var(--primary-color, #173C99);
-            font-family: inherit; font-size: 13px; background: #fff;
+            font-family: inherit; font-size: 13px; background-color: #fff;
         }
         .filter-input { width: 220px; }
         .filter-select { font-weight: 600; cursor: pointer; }
@@ -36,6 +36,7 @@ $sort   = $_GET['sort'] ?? 'date';
 </head>
 <body>
     <div class="main-content" style="display: flex; justify-content: center; overflow-y: hidden;">
+        <h1 class="coolveticaa" style="color: var(--primary-color); font-size: 1.8rem; font-weight: 700; margin: 0;">Dashboard / Event</h1>
         <div class="content-card">
             
             <div class="card-title-row">
@@ -66,7 +67,9 @@ $sort   = $_GET['sort'] ?? 'date';
                 </select>
 
                 <button class="sort-btn" onclick="toggleEventSortDir()" title="Change Ascending/Descending">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>
+                    <svg id="sortDirIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14M19 12l-7 7-7-7"/>
+                    </svg>
                 </button>
             </div>
 
@@ -106,6 +109,7 @@ $sort   = $_GET['sort'] ?? 'date';
     </div>
 
     <!-- MURNI PANGGIL DARI FILE TERPISAH -->
+    <script src="/cardhaven/interface/add_product_shortcut.js?v=<?= time() ?>"></script>
     <script src="/cardhaven/interface/event/event.js"></script>
 </body>
 </html>

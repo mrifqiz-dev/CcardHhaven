@@ -5,7 +5,8 @@
  * Dual-use: di-require indexCustomer.php (list/HTML) & fetch langsung (AJAX/JSON).
  */
 error_reporting(E_ALL);
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../../../auth/session.php';
+auth_session_start();
 
 $action = $_REQUEST['action'] ?? '';
 $isAjax = ($action !== '');
@@ -51,7 +52,7 @@ function saveProfilePhoto(?array $file): ?string {
     $mime = @mime_content_type($file['tmp_name']) ?: '';
     if (!isset($allowed[$mime])) throw new Exception('Photo must be JPG, PNG, WEBP, or GIF.');
     if (($file['size'] ?? 0) > 3 * 1024 * 1024) throw new Exception('Photo must be under 3 MB.');
-    $dir = __DIR__ . '/../../../image-profile/';
+    $dir = __DIR__ . '/../../../assets/image/image-profile/';
     if (!is_dir($dir)) @mkdir($dir, 0777, true);
     $name = 'user_' . uniqid() . '.' . $allowed[$mime];
     $ok = is_uploaded_file($file['tmp_name'])
@@ -61,8 +62,13 @@ function saveProfilePhoto(?array $file): ?string {
     return $name;
 }
 
-$role    = 0;
-$actorId = trim((string)($_POST['actor_id'] ?? ''));
+$role = 0;
+
+// Manajemen pengguna hanya untuk Owner.
+if ($isAjax) auth_api_require_role([ROLE_OWNER]);
+
+// Pelaku aksi (jejak audit) diambil dari session, bukan dari actor_id kiriman browser.
+$actorId = (string)auth_id();
 
 if ($isAjax) {
     if (!isset($conn) || $conn === false) jsonOut(false, 'Database connection failed. Please try again.');
@@ -196,8 +202,18 @@ if ($isAjax) {
             foreach ($r as $key => $val) {
                 if ($val instanceof DateTime) $r[$key] = $val->format('d M Y');
             }
-            $r['shopping_total']  = (float)($r['shopping_total'] ?? 0);
-            $r['shopping_amount'] = (int)($r['shopping_amount'] ?? 0);
+            // sp_GetCustomerList hanya SELECT * dari pengguna — tidak menghitung
+            // shopping_total/shopping_amount, jadi selama ini selalu 0. Hitung di sini
+            // dari tabel penjualan. Konvensi "total belanja" mengikuti ProfileController:
+            // semua order milik customer kecuali yang dibatalkan (status_penjualan = 8).
+            $idc = (int)($r['id_pengguna'] ?? 0);
+            $aggStmt = sqlsrv_query($conn,
+                "SELECT COUNT(*) AS amt, ISNULL(SUM(total_harga), 0) AS tot
+                 FROM dbo.penjualan WHERE id_pengguna = ? AND status_penjualan <> 8",
+                [$idc]);
+            $agg = $aggStmt ? sqlsrv_fetch_array($aggStmt, SQLSRV_FETCH_ASSOC) : null;
+            $r['shopping_amount'] = (int)($agg['amt'] ?? 0);
+            $r['shopping_total']  = (float)($agg['tot'] ?? 0);
             $data[] = $r;
         }
     }

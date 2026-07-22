@@ -1,8 +1,8 @@
 // 1. Tambahkan path controller keranjang di bagian atas (Menggunakan var agar aman dari crash redeclare)
 var CART_CONTROLLER = '/CardHaven/interface/cart/controller_keranjang.php';
 
-// 2. Fungsi untuk mengambil ID Pengguna (Pastikan ini ada)
-var getUserId = () => localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
+// 2. Fungsi untuk mengambil ID Pengguna dari PHP session (window.CH_AUTH)
+var getUserId = () => CardHavenAuth.id() || null;
 let eventButton; 
 
 function formatTanggal(dateInput) {
@@ -21,8 +21,7 @@ function formatTanggal(dateInput) {
     // Proteksi kalau date-nya invalid / ngaco
     if (isNaN(targetDate.getTime())) return '-';
 
-    // Format ke Indonesia (Contoh: 25 Juni 2026)
-    return new Intl.DateTimeFormat('id-ID', {
+    return new Intl.DateTimeFormat('en-GB', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
@@ -30,7 +29,24 @@ function formatTanggal(dateInput) {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-    
+
+    // Sembunyikan spinner bawaan browser pada input quantity supaya tampilannya tetap sama seperti span sebelumnya
+    if (!document.getElementById('qty-input-style')) {
+        const qtyStyle = document.createElement('style');
+        qtyStyle.id = 'qty-input-style';
+        qtyStyle.textContent = `
+            .qty-input-home::-webkit-outer-spin-button,
+            .qty-input-home::-webkit-inner-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+            }
+            .qty-input-home {
+                -moz-appearance: textfield;
+            }
+        `;
+        document.head.appendChild(qtyStyle);
+    }
+
     // Pisahkan state halaman secara absolut (Masing-masing jalan sendiri)
     let currentEventPage = 1;
     let currentGameBarPage = 1;
@@ -102,7 +118,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function updateTampilan(data) {
         // --- 1. RENDER EVENT (PREORDER) ---
+        const heroDesc  = document.querySelector('.hero-section .hero-desc');
+        const heroImg   = document.querySelector('.hero-section .hero-img');
+        const heroEmpty = document.getElementById('heroEmpty');
         if (data.event) {
+            // Ada event → tampilkan konten normal, sembunyikan empty state.
+            if (heroEmpty) heroEmpty.style.display = 'none';
+            if (heroDesc)  heroDesc.style.display  = '';
+            if (heroImg)   heroImg.style.display   = '';
             document.getElementById('ui-event-title').textContent = data.event.nama_event;
             document.getElementById('ui-event-product').textContent = data.event.nama_produk;
             document.getElementById('ui-event-date').textContent = data.event.tanggal_sampai;
@@ -111,18 +134,20 @@ document.addEventListener("DOMContentLoaded", function() {
             document.getElementById('endDate').textContent = formatTanggal(data.event.tanggal_berakhir);
             
             if (!data.event.foto) {
-                document.getElementById('ui-event-image').src = `/CardHaven/image-profile/defaultProduct.jpg`;
+                document.getElementById('ui-event-image').src = `/CardHaven/assets/image/image-profile/defaultProduct.jpg`;
             } else {
                 // Jika isinya hanya nama file (misal 'mewtwo_ex_special_art.webp'), arahkan ke folder products
                 let eventPath = data.event.foto;
                 if (!eventPath.includes('/')) {
                     eventPath = `assets/image/products/${eventPath}`;
+                } else if (eventPath.startsWith('image-profile/')) {
+                    // Data lama: foto tersimpan dgn prefix folder lama
+                    eventPath = `assets/image/${eventPath}`;
                 }
                 document.getElementById('ui-event-image').src = `/CardHaven/${eventPath}`;
             }
             
             const eventTitle = document.getElementById('btn-title');
-            const isLogin = sessionStorage.getItem('token') || localStorage.getItem('token');
 
             // SAKTI NYA DI SINI: Pakai .onclick supaya listener lama di-overwrite otomatis
             eventTitle.onclick = () => {
@@ -137,10 +162,17 @@ document.addEventListener("DOMContentLoaded", function() {
                 eventTitle.textContent = "Upcoming event check detail";
                 eventTitle.disabled = false;
             } else {
+                // Event complete: tombol TETAP aktif supaya modal (detail/history) bisa dibuka.
+                // Tombol beli di dalam modal sudah dinonaktifkan (preorder-transaction/script.js).
                 eventTitle.textContent = "Event was complete";
-                eventTitle.disabled = true;  // Di-disable kalau event sudah selesai
-                eventTitle.onclick = null;   // Hapus fungsi klik sekalian biar aman
+                eventTitle.disabled = false;
+                // onclick tetap openPreOrderEvent(...) yang di-set di atas — sengaja tidak di-null-kan.
             }
+        } else {
+            // Tidak ada preorder event → tampilkan empty state (maskot + caption).
+            if (heroEmpty) heroEmpty.style.display = 'flex';
+            if (heroDesc)  heroDesc.style.display  = 'none';
+            if (heroImg)   heroImg.style.display   = 'none';
         }
 
         // --- 2. RENDER EVENT (PROMO) - RENDER 4 ITEM ---
@@ -153,8 +185,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     let promoPath = promo.foto_banner;
                     if (promoPath && !promoPath.includes('/')) {
                         promoPath = `assets/image/products/${promoPath}`;
+                    } else if (promoPath && promoPath.startsWith('image-profile/')) {
+                        // Data lama: banner tersimpan dgn prefix folder lama
+                        promoPath = `assets/image/${promoPath}`;
                     }
-                    const bannerSrc = promoPath ? `/CardHaven/${promoPath}` : '/CardHaven/image-profile/defaultEvent.jpg';
+                    const bannerSrc = promoPath ? `/CardHaven/${promoPath}` : '/CardHaven/assets/image/image-profile/defaultEvent.jpg';
                     const gameName = promo.nama_game ? promo.nama_game : 'All Games';
 
                     if (promo.status_event == 1) {
@@ -190,7 +225,12 @@ document.addEventListener("DOMContentLoaded", function() {
                 });
             }
             else {
-                promoContainer.innerHTML = '<span style="color: white; text-align: center; display: block; width: 100%;">There are no promotional events at this time</span>';
+                // Empty state promo: maskot + caption (front-end English).
+                promoContainer.innerHTML = `
+                    <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 2rem 1rem;">
+                        <img src="/cardhaven/assets/image/empty-state.png" alt="No promo" style="width: 160px; height: auto; image-rendering: pixelated;">
+                        <p style="color: #7e7e7e; font-size: 1.1rem; font-weight: 600;">Promo is currently unavailable</p>
+                    </div>`;
             }
         }
 
@@ -203,8 +243,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     let gamePath = game.foto_banner;
                     if (gamePath && !gamePath.includes('/')) {
                         gamePath = `assets/image/products/${gamePath}`;
+                    } else if (gamePath && gamePath.startsWith('image-profile/')) {
+                        // Data lama: banner tersimpan dgn prefix folder lama
+                        gamePath = `assets/image/${gamePath}`;
                     }
-                    const bannerSrc = gamePath ? `/CardHaven/${gamePath}` : '/CardHaven/image-profile/defaultBanner.jpg';
+                    const bannerSrc = gamePath ? `/CardHaven/${gamePath}` : '/CardHaven/assets/image/image-profile/defaultBanner.jpg';
                     
                     // Mengganti <a href> dengan onclick pada div utama
                     const cardHTML = `
@@ -255,8 +298,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     let prodPath = prod.foto;
                     if (prodPath && !prodPath.includes('/')) {
                         prodPath = `assets/image/products/${prodPath}`;
+                    } else if (prodPath && prodPath.startsWith('image-profile/')) {
+                        // Data lama: foto tersimpan dgn prefix folder lama
+                        prodPath = `assets/image/${prodPath}`;
                     }
-                    const fotoSrc = prodPath ? `/CardHaven/${prodPath}` : '/CardHaven/image-profile/defaultProduct.jpg';
+                    const fotoSrc = prodPath ? `/CardHaven/${prodPath}` : '/CardHaven/assets/image/image-profile/defaultProduct.jpg';
 
                     const soldOut = (parseInt(prod.stok) || 0) <= 0;
 
@@ -294,9 +340,9 @@ document.addEventListener("DOMContentLoaded", function() {
                             <div style="display: flex; align-items: center; justify-content: space-between; color: var(--primary-color); margin-top: 1.25rem;">
                                 <h2 style="font-size:1rem">Price: <span id="display-price-${prod.id_produk}">${formatRupiah(prod.harga_jual)}</span></h2>
                                 <div style="display: flex; align-items: center; gap: 10px; border: 1px solid #ccc; border-radius: 20px; padding: 2px 10px; ${soldOut ? 'opacity:0.4; pointer-events:none;' : ''}">
-                                    <span id="negatif" onclick="updateHomeQty(${prod.id_produk}, -1, ${prod.harga_jual})" style="cursor:pointer; font-weight:bold; padding: 0 5px;">-</span>
-                                    <span id="qty-val-${prod.id_produk}" data-stok="${prod.stok}"style="font-weight:bold; min-width: 20px; text-align:center;">1</span>
-                                    <span onclick="updateHomeQty(${prod.id_produk}, 1, ${prod.harga_jual})" style="cursor:pointer; font-weight:bold; padding: 0 5px;">+</span>
+                                    <span id="minus-${prod.id_produk}" onclick="updateHomeQty(${prod.id_produk}, -1, ${prod.harga_jual})" style="cursor:pointer; font-weight:bold; padding: 0 5px;">-</span>
+                                    <input type="number" id="qty-val-${prod.id_produk}" class="qty-input-home" data-stok="${prod.stok}" value="1" min="1" max="${prod.stok}" oninput="handleHomeQtyInput(${prod.id_produk}, ${prod.harga_jual})" onblur="handleHomeQtyBlur(${prod.id_produk}, ${prod.harga_jual})" style="font-weight:bold; width: 32px; text-align:center; border:none; outline:none; background:transparent; padding:0; -moz-appearance:textfield;">
+                                    <span id="plus-${prod.id_produk}" onclick="updateHomeQty(${prod.id_produk}, 1, ${prod.harga_jual})" style="cursor:pointer; font-weight:bold; padding: 0 5px;">+</span>
                                 </div>
                             </div>
                             <div style="display: flex; gap: 0.65rem; margin:0.5rem 0">
@@ -423,7 +469,6 @@ window.addToCart = function(idProduk, harga) {
     fd.append('action', 'add_to_cart');
     fd.append('id_produk', idProduk);
     fd.append('harga_produk', harga);
-    fd.append('id_pengguna_js', userId); // Menggunakan ID dari storage agar sinkron
 
     // Kirim data ke controller_keranjang.php
     fetch(CART_CONTROLLER, {
@@ -442,47 +487,91 @@ window.addToCart = function(idProduk, harga) {
     .catch(err => console.error("Error add to cart:", err));
 };
 
-window.updateHomeQty = function(id, change, hargaSatuan) {
-    const qtyEl   = document.getElementById(`qty-val-${id}`);
-    const priceEl = document.getElementById(`display-price-${id}`);
-    const plusEl  = qtyEl.previousElementSibling; // span "+"... eh ini minus
-    // ambil tombol + lewat cara lebih aman:
-    const stok = parseInt(qtyEl.dataset.stok) || 1;
+// Fungsi bantu: sinkronkan tampilan harga + status tombol +/- berdasarkan qty saat ini
+function syncHomeQtyUI(id, hargaSatuan, currentQty) {
+    const qtyEl    = document.getElementById(`qty-val-${id}`);
+    const priceEl  = document.getElementById(`display-price-${id}`);
+    const plusBtn  = document.getElementById(`plus-${id}`);
+    const minusBtn = document.getElementById(`minus-${id}`);
+    const stok     = parseInt(qtyEl.dataset.stok) || 1;
 
-    let currentQty = parseInt(qtyEl.textContent);
+    qtyEl.value         = currentQty;
+    priceEl.textContent = formatRupiah(currentQty * hargaSatuan);
+
+    // Tombol "+" disable kalau sudah mentok stok
+    if (currentQty >= stok) {
+        plusBtn.style.opacity = '0.3';
+        plusBtn.style.cursor  = 'default';
+        plusBtn.onclick       = null;
+    } else {
+        plusBtn.style.opacity = '1';
+        plusBtn.style.cursor  = 'pointer';
+        plusBtn.onclick       = () => updateHomeQty(id, 1, hargaSatuan);
+    }
+
+    // Tombol "-" disable kalau sudah di angka minimal
+    if (currentQty <= 1) {
+        minusBtn.style.opacity = '0.3';
+        minusBtn.style.cursor  = 'default';
+        minusBtn.onclick       = null;
+    } else {
+        minusBtn.style.opacity = '1';
+        minusBtn.style.cursor  = 'pointer';
+        minusBtn.onclick       = () => updateHomeQty(id, -1, hargaSatuan);
+    }
+}
+
+window.updateHomeQty = function(id, change, hargaSatuan) {
+    const qtyEl = document.getElementById(`qty-val-${id}`);
+    const stok  = parseInt(qtyEl.dataset.stok) || 1;
+
+    let currentQty = parseInt(qtyEl.value) || 1;
     currentQty += change;
 
     if (currentQty < 1)    currentQty = 1;
     if (currentQty > stok) currentQty = stok;
 
-    qtyEl.textContent     = currentQty;
-    priceEl.textContent   = formatRupiah(currentQty * hargaSatuan);
+    syncHomeQtyUI(id, hargaSatuan, currentQty);
+};
 
-    // disable/enable tombol +
-    const plusBtn = qtyEl.nextElementSibling;
-    if (currentQty >= stok) {
-        plusBtn.style.opacity = '0.3';
-        plusBtn.style.cursor  = 'default';
-        plusBtn.onclick       = null;
-    } 
-    else if (currentQty <= 1) {
-        plusBtn.style.opacity = '0.3';
-        plusBtn.style.cursor  = 'default';
-        plusBtn.onclick       = null;
-    } 
-    
-    else {
-        plusBtn.style.opacity = '1';
-        plusBtn.style.cursor  = 'pointer';
-        plusBtn.onclick       = () => updateHomeQty(id, 1, hargaSatuan);
-    }
+// Dipanggil setiap kali user mengetik langsung di kolom quantity
+window.handleHomeQtyInput = function(id, hargaSatuan) {
+    const qtyEl = document.getElementById(`qty-val-${id}`);
+    const stok  = parseInt(qtyEl.dataset.stok) || 1;
+
+    // Biarkan field kosong sementara saat user masih mengetik, tanpa dipaksa jadi 1 dulu
+    if (qtyEl.value === '') return;
+
+    let typedQty = parseInt(qtyEl.value);
+    if (isNaN(typedQty)) return;
+
+    // Tetap batasi maksimal ke jumlah stok sambil mengetik, biar tidak kebablasan
+    if (typedQty > stok) typedQty = stok;
+    if (typedQty < 1)    typedQty = 1;
+
+    if (String(typedQty) !== qtyEl.value) qtyEl.value = typedQty;
+
+    const priceEl = document.getElementById(`display-price-${id}`);
+    priceEl.textContent = formatRupiah(typedQty * hargaSatuan);
+};
+
+// Dipanggil saat user selesai mengetik (keluar dari kolom), untuk rapikan nilai akhir
+window.handleHomeQtyBlur = function(id, hargaSatuan) {
+    const qtyEl = document.getElementById(`qty-val-${id}`);
+    const stok  = parseInt(qtyEl.dataset.stok) || 1;
+
+    let finalQty = parseInt(qtyEl.value);
+    if (isNaN(finalQty) || finalQty < 1) finalQty = 1;
+    if (finalQty > stok) finalQty = stok;
+
+    syncHomeQtyUI(id, hargaSatuan, finalQty);
 };
 // Update fungsi addToCart untuk mengambil nilai Qty terbaru
 window.addToCart = function(idProduk, hargaSatuan) {
     const userId = getUserId();
     // Ambil jumlah barang dari elemen quantity
     const qtyEl = document.getElementById(`qty-val-${idProduk}`);
-    const qty   = parseInt(qtyEl.textContent);
+    const qty   = parseInt(qtyEl.value) || 1;
     const stok  = parseInt(qtyEl.dataset.stok) || 0;
 
     if (stok <= 0) {
@@ -500,7 +589,6 @@ window.addToCart = function(idProduk, hargaSatuan) {
     fd.append('id_produk', idProduk);
     fd.append('harga_produk', hargaSatuan); // Kirim harga satuan
     fd.append('jumlah', qty);               // Kirim jumlah yang dipilih
-    fd.append('id_pengguna_js', userId);
 
     fetch('/CardHaven/interface/cart/controller_keranjang.php', {
         method: 'POST',
@@ -511,8 +599,10 @@ window.addToCart = function(idProduk, hargaSatuan) {
         if (res.success) {
             cardhavenToast('success', `${qty} Product added to cart!`);
             // Reset qty ke 1 setelah berhasil
-            document.getElementById(`qty-val-${idProduk}`).textContent = 1;
+            document.getElementById(`qty-val-${idProduk}`).value = 1;
             document.getElementById(`display-price-${idProduk}`).textContent = formatRupiah(hargaSatuan);
+        } else {
+            cardhavenToast('error', res.message || 'Failed to add product to cart');
         }
     });
 };
@@ -522,11 +612,11 @@ window.addToCart = function(idProduk, hargaSatuan) {
 window.buyNow = function(idProduk, hargaSatuan) {
     const userId = getUserId();
     const qtyEl  = document.getElementById(`qty-val-${idProduk}`);
-    const qty    = parseInt(qtyEl.textContent) || 1;
+    const qty    = parseInt(qtyEl.value) || 1;
     const stok   = parseInt(qtyEl.dataset.stok) || 0;
 
     if (!userId || userId === "0") {
-        cardhavenAlert('error', 'Failed', 'Please login first to checkout!');
+        window.location.replace('login')
         return;
     }
     if (stok <= 0) {
@@ -539,7 +629,6 @@ window.buyNow = function(idProduk, hargaSatuan) {
     fd.append('id_produk', idProduk);
     fd.append('harga_produk', hargaSatuan);
     fd.append('jumlah', qty);
-    fd.append('id_pengguna_js', userId);
 
     fetch('/CardHaven/interface/cart/controller_keranjang.php', {
         method: 'POST',

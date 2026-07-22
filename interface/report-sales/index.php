@@ -1,12 +1,22 @@
 
 <?php
+require_once __DIR__ . '/../../auth/session.php';
+
 $type = $_GET['type'] ?? 'sales';
 $titles = [
     'sales'   => 'Sales Report',
     'buyback' => 'Buyback Report',
     'restok'  => 'Restock Report',
-    'event'   => 'Event Report'
+    'event'   => 'Event Report',
+    'profit'  => 'Profit Report'
 ];
+
+// Tab Profit khusus Owner — dicek di server, bukan sekadar disembunyikan.
+$isOwner = (auth_role() === ROLE_OWNER);
+if ($type === 'profit' && !$isOwner) {
+    $type = 'sales';
+}
+
 // Ambil judul berdasarkan tipe, default ke 'Report' jika tipe tidak ditemukan
 $currentTitle = $titles[$type] ?? 'Report';
 ?>
@@ -22,6 +32,7 @@ $currentTitle = $titles[$type] ?? 'Report';
 </head>
 <body>
     <div class="main-content">
+        <h1 class="coolveticaa" style="color: var(--primary-color); font-size: 1.8rem; font-weight: 700; margin: 0;">Dashboard / Report</h1>
         <div class="content-card">
             
             <div class="card-title-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
@@ -29,10 +40,11 @@ $currentTitle = $titles[$type] ?? 'Report';
                     <?= $currentTitle ?>
                 </h2>
                 
-                <div style="display: flex; background: rgba(0,0,0,0.05); padding: 4px; border-radius: 999px;">
-                    <?php 
+                <div class="report-tabs" style="display: flex; background: rgba(0,0,0,0.05); padding: 4px; border-radius: 999px;">
+                    <?php
                     $tabs = ['sales' => 'Sales', 'buyback' => 'Buyback', 'restok' => 'Restok', 'event' => 'Event'];
-                    foreach ($tabs as $key => $label): 
+                    if ($isOwner) $tabs['profit'] = 'Profit';
+                    foreach ($tabs as $key => $label):
                         $isActive = ($type === $key);
                     ?>
                         <a href="?type=<?= $key ?>" style="text-decoration: none; padding: 8px 24px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; transition: 0.2s; 
@@ -43,15 +55,17 @@ $currentTitle = $titles[$type] ?? 'Report';
                 </div>
             </div>
 
-            <!-- ANALYTICS: bar chart bulanan + (khusus Sales) top 3 selling items -->
+            <!-- ANALYTICS: bar chart bulanan + (khusus Sales) top 3 selling items.
+                 Tab Profit punya chart sendiri di section-nya. -->
+            <?php if ($type !== 'profit'): ?>
             <div style="display:flex; gap:1.25rem; margin-bottom:1.5rem; flex-wrap:wrap;">
                 <div style="flex:2; min-width:320px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; box-sizing:border-box;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:.75rem; gap:1rem;">
+                    <div class="report-overview-head" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:.75rem; gap:1rem;">
                         <div>
                             <div style="font-weight:700; color:var(--primary-color); font-size:1.05rem;"><?= htmlspecialchars($currentTitle) ?> Overview</div>
                             <div style="font-size:.72rem; color:#94a3b8;">Monthly total (Rp) per selected year</div>
                         </div>
-                        <select id="reportChartYear" onchange="reportLoadChart(this.value)" style="height:34px; padding:0 12px; border:1.5px solid #D0DAF0; border-radius:9999px; font-size:.82rem; color:var(--primary-color); background:#fff; cursor:pointer;"></select>
+                        <select id="reportChartYear" onchange="reportLoadChart(this.value)" style="height:34px; padding:0 36px 0 12px; border:1.5px solid #D0DAF0; border-radius:9999px; font-size:.82rem; color:var(--primary-color); background-color:#fff; cursor:pointer;"></select>
                     </div>
                     <div style="height:260px; position:relative;"><canvas id="reportChart"></canvas></div>
                 </div>
@@ -64,6 +78,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                 </div>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
 
             <?php if ($type === 'sales'): ?>
                 <div class="filter-container" style="display: flex; flex-direction: column; gap: 15px; background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
@@ -76,7 +91,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <button onclick="shiftYear(1)" style="background: #f8fafc; border: none; border-left: 1px solid #ccc; width: 35px; height: 100%; cursor: pointer; font-weight: bold; color: var(--primary-color); font-size: 1.2rem;">+</button>
                             </div>
                             
-                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 12px; border-radius: 8px;">
+                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="0">All Months</option>
                                 <option value="1">January</option>
                                 <option value="2">February</option>
@@ -92,7 +107,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="12">December</option>
                             </select>
 
-                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 12px; border-radius: 8px;">
+                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="NONE" hidden selected>Sort By...</option>
                                 <option value="NONE">None</option>
                                 <option value="DATE">Date</option>
@@ -100,17 +115,21 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="QTY">Quantity</option>
                             </select>
 
-                            <button id="btnSortOrder" class="btn-sort-small" onclick="toggleSortOrder()" style="margin-left: 5px; width: 120px;">Descending ↓</button>
+                            <button id="btnSortOrder" class="sort-btn" onclick="toggleSortOrder()" title="Change Ascending/Descending" style="margin-left: 5px;">
+                                <svg id="sortOrderIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 5v14M19 12l-7 7-7-7"/>
+                                </svg>
+                            </button>
                         </div>
 
                         <div class="export-group" style="display: flex; gap: 10px; flex-shrink: 0;">
-                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
-                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
+                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
+                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
                         </div>
                     </div>
 
                     <div style="width: 100%;">
-                        <input type="text" id="searchReport" class="modal-input" placeholder="Search customer, card, date, receipt, or price..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 8px; margin: 0; box-sizing: border-box;">
+                        <input type="text" id="searchReport" class="modal-input" placeholder="Search customer, card, date, receipt, or price..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 9999px;">
                     </div>
                 </div>
                 <table class="styled-table" id="tableLaporan">
@@ -119,10 +138,10 @@ $currentTitle = $titles[$type] ?? 'Report';
                             <th width="5%">No</th>
                             <th width="12%">Date</th>
                             <th width="18%">Customer</th>
-                            <th width="30%">Product Purchased</th>
+                            <th width="20%">Product Purchased</th>
                             <th width="15%">Payment Method</th>
                             <th width="10%">Quantity</th>
-                            <th width="15%">Price</th>
+                            <th width="25%">Price</th>
                             <th width="10%">Action</th>
                         </tr>
                     </thead>
@@ -170,7 +189,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <button onclick="shiftYear(1)" style="background: #f8fafc; border: none; border-left: 1px solid #ccc; width: 35px; height: 100%; cursor: pointer; font-weight: bold; color: var(--primary-color); font-size: 1.2rem;">+</button>
                             </div>
                             
-                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 12px; border-radius: 8px;">
+                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="0">All Months</option>
                                 <option value="1">January</option>
                                 <option value="2">February</option>
@@ -186,7 +205,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="12">December</option>
                             </select>
 
-                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 12px; border-radius: 8px;">
+                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="NONE" hidden selected>Sort By...</option>
                                 <option value="NONE">None</option>
                                 <option value="DATE">Date</option>
@@ -194,17 +213,21 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="QTY">Quantity</option>
                             </select>
 
-                            <button id="btnSortOrder" class="btn-sort-small" onclick="toggleSortOrder()" style="margin-left: 5px; width: 120px;">Descending ↓</button>
+                            <button id="btnSortOrder" class="sort-btn" onclick="toggleSortOrder()" title="Change Ascending/Descending" style="margin-left: 5px;">
+                                <svg id="sortOrderIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 5v14M19 12l-7 7-7-7"/>
+                                </svg>
+                            </button>
                         </div>
 
                         <div class="export-group" style="display: flex; gap: 10px; flex-shrink: 0;">
-                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
-                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
+                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
+                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
                         </div>
                     </div>
 
                     <div style="width: 100%;">
-                        <input type="text" id="searchReport" class="modal-input" placeholder="Search customer, card, date, receipt, or price..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 8px; margin: 0; box-sizing: border-box;">
+                        <input type="text" id="searchReport" class="modal-input" placeholder="Search customer, card, date, receipt, or price..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 9999px;">
                     </div>
                 </div>
 
@@ -263,7 +286,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <button onclick="shiftYear(1)" style="background: #f8fafc; border: none; border-left: 1px solid #ccc; width: 35px; height: 100%; cursor: pointer; font-weight: bold; color: var(--primary-color); font-size: 1.2rem;">+</button>
                             </div>
 
-                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 12px; border-radius: 8px;">
+                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="0">All Months</option>
                                 <option value="1">January</option>
                                 <option value="2">February</option>
@@ -279,7 +302,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="12">December</option>
                             </select>
 
-                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 12px; border-radius: 8px;">
+                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="NONE" hidden selected>Sort By...</option>
                                 <option value="NONE">None</option>
                                 <option value="DATE">Date</option>
@@ -287,17 +310,21 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="QTY">Quantity</option>
                             </select>
 
-                            <button id="btnSortOrder" class="btn-sort-small" onclick="toggleSortOrder()" style="margin-left: 5px; width: 120px;">Descending ↓</button>
+                            <button id="btnSortOrder" class="sort-btn" onclick="toggleSortOrder()" title="Change Ascending/Descending" style="margin-left: 5px;">
+                                <svg id="sortOrderIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 5v14M19 12l-7 7-7-7"/>
+                                </svg>
+                            </button>
                         </div>
 
                         <div class="export-group" style="display: flex; gap: 10px; flex-shrink: 0;">
-                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
-                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
+                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
+                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
                         </div>
                     </div>
 
                     <div style="width: 100%;">
-                        <input type="text" id="searchReport" class="modal-input" placeholder="Search supplier, product, date, or price..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 8px; margin: 0; box-sizing: border-box;">
+                        <input type="text" id="searchReport" class="modal-input" placeholder="Search supplier, product, date, or price..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 9999px;">
                     </div>
                 </div>
 
@@ -356,7 +383,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <button onclick="shiftYear(1)" style="background: #f8fafc; border: none; border-left: 1px solid #ccc; width: 35px; height: 100%; cursor: pointer; font-weight: bold; color: var(--primary-color); font-size: 1.2rem;">+</button>
                             </div>
 
-                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 12px; border-radius: 8px;">
+                            <select id="filterBulan" class="modal-input" onchange="fetchReportData()" style="height: 38px; width: 130px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="0">All Months</option>
                                 <option value="1">January</option>
                                 <option value="2">February</option>
@@ -372,7 +399,7 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="12">December</option>
                             </select>
 
-                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 12px; border-radius: 8px;">
+                            <select id="sortCriterion" class="modal-input" onchange="changeSortCriterion()" style="height: 38px; width: 140px; padding: 0 36px 0 12px; border-radius: 9999px;">
                                 <option value="NONE" hidden selected>Sort By...</option>
                                 <option value="NONE">None</option>
                                 <option value="DATE">Date</option>
@@ -380,17 +407,21 @@ $currentTitle = $titles[$type] ?? 'Report';
                                 <option value="QTY">Quantity</option>
                             </select>
 
-                            <button id="btnSortOrder" class="btn-sort-small" onclick="toggleSortOrder()" style="margin-left: 5px; width: 120px;">Descending ↓</button>
+                            <button id="btnSortOrder" class="sort-btn" onclick="toggleSortOrder()" title="Change Ascending/Descending" style="margin-left: 5px;">
+                                <svg id="sortOrderIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 5v14M19 12l-7 7-7-7"/>
+                                </svg>
+                            </button>
                         </div>
 
                         <div class="export-group" style="display: flex; gap: 10px; flex-shrink: 0;">
-                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
-                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 8px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
+                            <button class="btn-add-green" onclick="exportReport('excel')" style="background-color: #27AE60; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export Excel</button>
+                            <button class="btn-add-green" onclick="exportReport('pdf')" style="background-color: #E74C3C; border-radius: 9999px; height: 38px; padding: 0 15px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;">Export PDF</button>
                         </div>
                     </div>
 
                     <div style="width: 100%;">
-                        <input type="text" id="searchReport" class="modal-input" placeholder="Search event name, type, product, date, or revenue..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 8px; margin: 0; box-sizing: border-box;">
+                        <input type="text" id="searchReport" class="modal-input" placeholder="Search event name, type, product, date, or revenue..." onkeyup="debounceSearch()" style="height: 38px; width: 100%; border-radius: 9999px;">
                     </div>
                 </div>
 
@@ -440,7 +471,98 @@ $currentTitle = $titles[$type] ?? 'Report';
                     </div>
                 </div>
             <?php endif; ?>
-            
+
+            <?php if ($type === 'profit'): ?>
+                <!-- ── PROFIT (Owner only) ─────────────────────────────── -->
+                <div style="display:flex; align-items:center; margin-bottom:1.25rem; gap:15px; flex-wrap:wrap; width:100%;">
+                    <select id="profitYear" onchange="profitLoad(this.value)" style="flex: 1; height:38px; min-width: 150px; padding:0 36px 0 12px; border:1.5px solid #D0DAF0; border-radius:9999px; font-size:.85rem; color:var(--primary-color); background-color:#fff; cursor:pointer;"></select>
+
+                    <div class="export-group" style="display:flex; gap:10px; flex-shrink:0;">
+                        <button class="btn-add-green" onclick="profitExport('excel')" style="background-color:#27AE60; border-radius:9999px; height:38px; padding:0 15px; font-size:0.85rem; display:flex; align-items:center; justify-content:center;">Export Excel</button>
+                        <button class="btn-add-green" onclick="profitExport('pdf')" style="background-color:#E74C3C; border-radius:9999px; height:38px; padding:0 15px; font-size:0.85rem; display:flex; align-items:center; justify-content:center;">Export PDF</button>
+                    </div>
+                </div>
+
+                <!-- Stat cards: 2 baris x 2 pasangan; tiap pasangan senada warnanya -->
+                <style>
+                    .profit-pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+                    .profit-pair {
+                        display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;
+                        background: #f8fafc; border: 1px solid #e2e8f0;
+                        border-left: 5px solid var(--pair-color);
+                        border-radius: 12px; padding: 1rem 1.1rem;
+                    }
+                    .profit-pair-label { font-size: .72rem; color: #64748b; font-weight: 600; margin-bottom: .3rem; }
+                    .profit-pair-value { font-size: 1.15rem; font-weight: 800; color: var(--pair-color); }
+                    @media screen and (max-width: 900px) { .profit-pairs { grid-template-columns: 1fr; } }
+                    @media screen and (max-width: 480px) { .profit-pair  { grid-template-columns: 1fr; } }
+                </style>
+                <div class="profit-pairs">
+                    <div class="profit-pair" style="--pair-color:#0F3891;">
+                        <div>
+                            <div class="profit-pair-label">Revenue (Completed Sales)</div>
+                            <div id="profitCardRevenue" class="profit-pair-value">Rp 0</div>
+                        </div>
+                        <div>
+                            <div class="profit-pair-label">Product Cost (COGS)</div>
+                            <div id="profitCardCogs" class="profit-pair-value">Rp 0</div>
+                        </div>
+                    </div>
+                    <div class="profit-pair" style="--pair-color:#27AE60;">
+                        <div>
+                            <div class="profit-pair-label">Gross Profit</div>
+                            <div id="profitCardProfit" class="profit-pair-value">Rp 0</div>
+                        </div>
+                        <div>
+                            <div class="profit-pair-label">Profit Margin</div>
+                            <div id="profitCardMargin" class="profit-pair-value">0 %</div>
+                        </div>
+                    </div>
+                    <div class="profit-pair" style="--pair-color:#E67E22;">
+                        <div>
+                            <div class="profit-pair-label">Restock Spending (Paid)</div>
+                            <div id="profitCardRestok" class="profit-pair-value">Rp 0</div>
+                        </div>
+                        <div>
+                            <div class="profit-pair-label">Buyback Spending</div>
+                            <div id="profitCardBuyback" class="profit-pair-value">Rp 0</div>
+                        </div>
+                    </div>
+                    <div class="profit-pair" style="--pair-color:#8E44AD;">
+                        <div>
+                            <div class="profit-pair-label">Items Sold</div>
+                            <div id="profitCardSold" class="profit-pair-value">0 Pcs</div>
+                        </div>
+                        <div>
+                            <div class="profit-pair-label">Completed Orders</div>
+                            <div id="profitCardOrders" class="profit-pair-value">0 Orders</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; margin-bottom:1.5rem;">
+                    <div style="font-weight:700; color:var(--primary-color); font-size:1.05rem; margin-bottom:.25rem;">Profit Overview</div>
+                    <div style="font-size:.72rem; color:#94a3b8; margin-bottom:.75rem;">Monthly revenue vs gross profit (Rp)</div>
+                    <div style="height:260px; position:relative;"><canvas id="profitChart"></canvas></div>
+                </div>
+
+                <table class="styled-table" id="tableProfit">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;">Month</th>
+                            <th>Revenue</th>
+                            <th>Product Cost</th>
+                            <th>Gross Profit</th>
+                            <th>Restock Spend</th>
+                            <th>Buyback Spend</th>
+                        </tr>
+                    </thead>
+                    <tbody id="profitTableBody">
+                        <tr><td colspan="6">Loading…</td></tr>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+
 
         </div>
     </div>
@@ -461,6 +583,9 @@ $currentTitle = $titles[$type] ?? 'Report';
             <script>window.REPORT_TYPE = '<?= $type ?>';</script>
             <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
             <script src="/cardhaven/interface/report-sales/report_charts.js?v=<?= time() ?>"></script>
+    <?php elseif ($type === 'profit'): ?>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+            <script src="/cardhaven/interface/report-sales/laporan_profit_script.js?v=<?= time() ?>"></script>
     <?php endif; ?>
 
 </body>

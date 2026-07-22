@@ -1,5 +1,5 @@
 const URL_PRODUK = '/cardhaven/interface/product/controller_produk.php'; 
-var getEmpId = () => localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
+var getEmpId = () => CardHavenAuth.id() || null;
 
 function showError(el, msg) {
     el.style.border = "2px solid #E74C3C"; 
@@ -97,7 +97,7 @@ setupSuggest('pSupplierSearch', 'pIdSupplier', 'pSupplierSuggest', 'search_suppl
 
 function toggleProdFields() {
     const tipe = document.getElementById('pTipe').value;
-    document.getElementById('pSetGroup').style.display = (tipe.includes('Card') || tipe.includes('Booster')) ? 'block' : 'none';
+    document.getElementById('pSetGroup').style.display = (tipe.includes('Single Card') || tipe.includes('Booster')) ? 'block' : 'none';
     document.getElementById('pRarityGroup').style.display = (tipe === 'Single Card') ? 'block' : 'none';
     document.getElementById('pKondisiGroup').style.display = (tipe === 'Single Card') ? 'block' : 'none';
 
@@ -169,13 +169,13 @@ document.getElementById('productForm').onsubmit = async function(e) {
         if (!val) {
             showError(el, `${f.label} must be filled in`);
             isValid = false;
-        } else if (f.isNum && (isNaN(val) || parseFloat(val) < (f.id === 'pStok' ? 1 : 0))) {
-            showError(el, `${f.label} must be at least ${f.id === 'pStok' ? 1 : 0}`);
+        } else if (f.isNum && (isNaN(val) || parseFloat(val) < 0)) {
+            showError(el, `${f.label} must be at least 0`);
             isValid = false;
         }
     });
 
-    if (tipe.includes('Card') || tipe.includes('Booster')) {
+    if (tipe.includes('Single Card') || tipe.includes('Booster')) {
         const gameId = document.getElementById('pIdGame').value;
         const gameSearch = document.getElementById('pGameSearch');
         
@@ -204,16 +204,25 @@ document.getElementById('productForm').onsubmit = async function(e) {
     submitBtn.innerText = "Saving...";
 
     const fd = new FormData(this);
-    fd.append('id_pengguna_js', getEmpId());
 
     try {
         const response = await fetch(URL_PRODUK, { method: 'POST', body: fd });
         const res = JSON.parse(await response.text());
 
         if (res.status === 'success') {
+            const apCtx = (typeof chGetReturnCtx === 'function') ? chGetReturnCtx() : null;
             cardhavenAlert('success', 'Success', 'Product data saved successfully.', () => {
-                document.getElementById('productModal').style.display = 'none'; 
-                setTimeout(() => { location.reload(); }, 300);
+                document.getElementById('productModal').style.display = 'none';
+                if (apCtx) {
+                    // Shortcut flow: remember the new product and return to the origin modal.
+                    chSetNewProduct({
+                        nama_produk: (document.getElementById('pNama').value || '').trim(),
+                        id_supplier: (document.getElementById('pIdSupplier').value || '').toString(),
+                    });
+                    window.location.href = apCtx.returnUrl;
+                } else {
+                    setTimeout(() => { location.reload(); }, 300);
+                }
             });
         } else {
             cardhavenAlert('error', 'Failed', res.message);
@@ -267,7 +276,6 @@ function toggleProductStatus(id, isActive, el) {
     const fd = new FormData();
     fd.append('action', action);
     fd.append('id_produk', id);
-    fd.append('id_pengguna_js', getEmpId()); 
 
     fetch(URL_PRODUK, { method: 'POST', body: fd })
     .then(res => res.json())
@@ -344,7 +352,6 @@ function confirmDeleteProduct(id) {
         const fd = new FormData();
         fd.append('action', 'delete');
         fd.append('id_produk', id);
-        fd.append('id_pengguna_js', getEmpId());
 
         fetch(URL_PRODUK, { method: 'POST', body: fd })
         .then(res => res.json())
@@ -407,7 +414,7 @@ function openDetailProductModal(id) {
             if(rowRarity) rowRarity.style.display = 'none';
             if(rowKondisi) rowKondisi.style.display = 'none';
 
-            if (rowSet && (tipe.includes('Card') || tipe.includes('Booster'))) {
+            if (rowSet && (tipe.includes('Single Card') || tipe.includes('Booster'))) {
                 rowSet.style.display = 'table-row';
                 document.getElementById('detProdSet').innerText = data.nama_set || '-';
             }
@@ -434,24 +441,27 @@ function openDetailProductModal(id) {
         });
 }
 
-window.addEventListener('click', function(e) { 
+window.addEventListener('click', function(e) {
     const md = document.getElementById('productModal');
     if (md && e.target === md) {
+        const apCtx = (typeof chGetReturnCtx === 'function') ? chGetReturnCtx() : null;
         const nama = document.getElementById('pNama').value.trim();
         if (nama !== '') {
             md.style.display = 'none'; // Sembunyikan form seketika
             let isConfirmed = false;
-            
+
             const actionText = document.getElementById('pAction').value === 'edit' ? 'Edit' : 'Add';
             // Gunakan fungsi bawaan sistem Anda
             cardhavenConfirm(
-                `Cancel ${actionText} Product?`, 
+                `Cancel ${actionText} Product?`,
                 "The data you have entered will be lost.",
-                "Yes, Exit", 
+                "Yes, Exit",
                 () => {
                     isConfirmed = true;
                     document.getElementById('productForm').reset();
                     clearAllErrors('productForm');
+                    // Shortcut flow: go back to the origin modal (nothing added).
+                    if (apCtx) window.location.href = apCtx.returnUrl;
                 }
             );
 
@@ -464,10 +474,30 @@ window.addEventListener('click', function(e) {
             }, 15);
         } else {
             md.style.display = 'none';
+            // Shortcut flow with an empty form: just return to the origin modal.
+            if (apCtx) window.location.href = apCtx.returnUrl;
         }
-    } 
-    const mdDetail = document.getElementById('productDetailModal'); 
+    }
+    const mdDetail = document.getElementById('productDetailModal');
     if (mdDetail && e.target === mdDetail) mdDetail.style.display = 'none';
+});
+
+// ── "Add New Product" shortcut: auto-open the Add Product modal when we arrived
+//    here from an Add PO / Add Event / Edit Event flow. ────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof chGetReturnCtx !== 'function') return;
+    const apCtx = chGetReturnCtx();
+    if (!apCtx) return;
+
+    openAddProductModal();
+
+    // For Add PO, lock the new product to the PO's supplier.
+    if (apCtx.origin === 'addpo' && apCtx.supplier) {
+        const sName = document.getElementById('pSupplierSearch');
+        const sId   = document.getElementById('pIdSupplier');
+        if (sName) sName.value = apCtx.supplier.name || '';
+        if (sId)   sId.value   = apCtx.supplier.id   || '';
+    }
 });
 
 document.addEventListener('DOMContentLoaded', () => {

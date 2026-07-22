@@ -16,9 +16,14 @@
 header('Content-Type: application/json');
 
 require __DIR__ . '/../../connection.php';
+require_once __DIR__ . '/../../auth/session.php';
 // $conn is expected to be a valid sqlsrv connection resource.
 
 $action = $_GET['action'] ?? '';
+
+// Catatan: get_event & get_payment_methods sengaja tetap terbuka (halaman event
+// boleh dilihat pengunjung). Aksi yang menyangkut data/pesanan pribadi
+// mewajibkan login dan memakai id_pengguna dari session.
 
 switch ($action) {
 
@@ -116,10 +121,11 @@ switch ($action) {
        GET PURCHASE COUNT (per-product, per-user, per-event)
     ────────────────────────────────────────────────────── */
     case 'get_purchase_count':
-        $idPengguna = (int)($_GET['id_pengguna'] ?? 0);
-        $idEvent    = (int)($_GET['id_event']    ?? 0);
+        // Jumlah pembelian milik user sendiri — id dari session.
+        $idPengguna = auth_api_require_login()['id'];
+        $idEvent    = (int)($_GET['id_event'] ?? 0);
 
-        if (!$idPengguna || !$idEvent) {
+        if (!$idEvent) {
             echo json_encode(['counts' => []]);
             exit;
         }
@@ -164,7 +170,8 @@ switch ($action) {
             exit;
         }
 
-        $idPengguna = (int)($body['id_pengguna'] ?? 0);
+        // Pemesan = user yang sedang login (dari session), bukan id kiriman browser.
+        $idPengguna = auth_api_require_login()['id'];
         $idEvent    = (int)($body['id_event']    ?? 0);
         $idMetode   = (int)($body['id_metode']   ?? 0);
         $alamat     = trim($body['alamat']        ?? '');
@@ -213,9 +220,14 @@ switch ($action) {
                     ON dp.id_penjualan = pj.id_penjualan
                 INNER JOIN [CardHaven].[dbo].[produk_event] pe
                     ON pe.id_produk = dp.id_produk AND pe.id_event = ?
+                INNER JOIN [CardHaven].[dbo].[event] ev 
+                    ON ev.id_event = pe.id_event
                 WHERE  pj.id_pengguna = ?
                 AND  dp.id_produk   = ?
                 AND  pj.status_penjualan NOT IN (7, 8) 
+                AND  dp.harga_produk = pe.harga_event
+                AND  pj.tanggal_penjualan >= ev.tanggal_mulai
+                AND  pj.tanggal_penjualan <= DATEADD(day, 1, ev.tanggal_berakhir)
             ";
             $stmtCount = sqlsrv_query($conn, $sqlCount, [$idEvent, $idPengguna, $idProduk]);
             if (!$stmtCount) {
@@ -329,40 +341,43 @@ switch ($action) {
 
         // ... Lanjut ke proses INSERT detail_penjualan ...
 
-        // Insert detail_penjualan + deduct stok_event
+        // Insert detail_penjualan WITH id_produk_event so the DB triggers can
+        // apply the correct stock logic (promo = deduct physical + quota at
+        // payment). Stock is owned entirely by the triggers now — no manual
+        // deduction here (that used to double-count and could go negative).
         foreach ($items as $it) {
             $idProduk    = (int)$it['id_produk'];
             $jumlah      = (int)$it['jumlah'];
             $hargaProduk = (float)$it['harga_produk'];
             $subtotal    = $jumlah * $hargaProduk;
 
+            // Resolve the event-product link (authoritative, server-side).
+            $stmtPe = sqlsrv_query($conn,
+                "SELECT id_produk_event FROM [CardHaven].[dbo].[produk_event]
+                 WHERE id_produk = ? AND id_event = ? AND ISNULL(is_deleted, 0) = 0",
+                [$idProduk, $idEvent]);
+            $peRow = $stmtPe ? sqlsrv_fetch_array($stmtPe, SQLSRV_FETCH_ASSOC) : null;
+            if ($stmtPe) sqlsrv_free_stmt($stmtPe);
+            if (!$peRow) {
+                sqlsrv_rollback($conn);
+                echo json_encode(['success' => false, 'message' => 'Event product not found for this order.']); exit;
+            }
+            $idProdukEvent = (int)$peRow['id_produk_event'];
+
             $sqlDet = "
                 INSERT INTO [CardHaven].[dbo].[detail_penjualan]
-                    (id_penjualan, id_produk, jumlah_barang, harga_produk, subtotal_harga)
-                VALUES (?, ?, ?, ?, ?)
+                    (id_penjualan, id_produk, id_produk_event, jumlah_barang, harga_produk, subtotal_harga)
+                VALUES (?, ?, ?, ?, ?, ?)
             ";
             $stmtDet = sqlsrv_query($conn, $sqlDet, [
-                $idPenjualan, $idProduk, $jumlah, $hargaProduk, $subtotal
+                $idPenjualan, $idProduk, $idProdukEvent, $jumlah, $hargaProduk, $subtotal
             ]);
             if (!$stmtDet) {
                 sqlsrv_rollback($conn);
-                echo json_encode(['success' => false, 'message' => 'Failed to insert order detail.']); exit;
+                $dbErrors = sqlsrv_errors();
+                echo json_encode(['success' => false, 'message' => $dbErrors[0]['message'] ?? 'Failed to insert order detail.']); exit;
             }
             sqlsrv_free_stmt($stmtDet);
-
-            // Deduct event stock
-            $sqlDeduct = "
-                UPDATE [CardHaven].[dbo].[produk_event]
-                SET stok_event = stok_event - ?
-                WHERE id_produk = ? AND id_event = ?
-                  AND ISNULL(is_deleted, 0) = 0
-            ";
-            $stmtDeduct = sqlsrv_query($conn, $sqlDeduct, [$jumlah, $idProduk, $idEvent]);
-            if (!$stmtDeduct) {
-                sqlsrv_rollback($conn);
-                echo json_encode(['success' => false, 'message' => 'Failed to update stock.']); exit;
-            }
-            sqlsrv_free_stmt($stmtDeduct);
         }
 
         sqlsrv_commit($conn);

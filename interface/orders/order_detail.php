@@ -1,9 +1,9 @@
 <?php
-session_start();
-if (!isset($_SESSION['id_pengguna'])) {
-    header("Location: /cardhaven/interface/auth/login.php");
-    exit;
-}
+require_once __DIR__ . '/../../auth/session.php';
+
+// Wajib login (dicek di server).
+auth_require_login();
+
 $id_penjualan = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id_penjualan) {
     header("Location: /cardhaven/interface/orders/");
@@ -412,8 +412,12 @@ if (!$id_penjualan) {
             `).join('');
 
             // ---- Proof of payment ----
+            // Nilai DB adalah path relatif lengkap. Data lama masih memakai folder
+            // 'bukti_pembayaran/' → arahkan ke lokasi baru di assets/image/.
+            let buktiSrc = o.bukti_pembayaran || '';
+            if (buktiSrc.startsWith('bukti_pembayaran/')) buktiSrc = `assets/image/${buktiSrc}`;
             const buktiHtml = o.bukti_pembayaran
-                ? `<img src="/CardHaven/${escHtml(o.bukti_pembayaran)}" class="bukti-img" alt="Payment Proof"
+                ? `<img src="/CardHaven/${escHtml(buktiSrc)}" class="bukti-img" alt="Payment Proof"
                         onerror="this.outerHTML='<p style=color:#888>Preview unavailable</p>'">`
                 : `<p style="color:#888;font-size:0.85rem;">No payment proof uploaded yet.</p>`;
 

@@ -74,7 +74,7 @@ if (isset($conn) && $conn !== false) {
     <link rel="stylesheet" href="/cardhaven/interface/global.css">
     <style>
         .main-content {
-            padding-top: 20px !important; /* Tambahkan jarak dari atas */
+            padding-top: 2rem !important; /* Tambahkan jarak dari atas */
             padding-left: 2rem;
             padding-right: 2rem;
             padding-bottom: 2rem;
@@ -290,10 +290,16 @@ if (isset($conn) && $conn !== false) {
         /* ── Table clickable row ── */
         .trx-row { cursor: pointer; }
         .trx-row:hover td { background-color: rgba(15, 56, 145, 0.05) !important; }
+        
+        /* ── Tambahan CSS AJAX Loader ── */
+        #tableContainer {
+            transition: opacity 0.3s ease;
+        }
     </style>
 </head>
 <body>
     <div class="main-content">
+        <h1 class="coolveticaa" style="color: var(--primary-color); font-size: 1.8rem; font-weight: 700; margin: 0;">Dashboard / Transaction</h1>
         <div class="content-card">
 
             <div class="card-title-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
@@ -303,7 +309,7 @@ if (isset($conn) && $conn !== false) {
             <?php if ($type === 'sales'): ?>
                 <!-- ================== START SALES ================== -->
                 <!-- Filter By + Sort By + Asc/Desc satu baris, Search full width di bawah -->
-                <?php $trxPill = 'padding:8px 16px; border:1.5px solid #D0DAF0; border-radius:9999px; font-size:0.88rem; outline:none; background:white;'; ?>
+                <?php $trxPill = 'padding:8px 36px 8px 16px; border:1.5px solid #D0DAF0; border-radius:9999px; font-size:0.88rem; outline:none; background-color:white;'; ?>
                 <div style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.25rem;">
                     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
                         <select onchange="setTrxStatus(this.value)" style="width:200px; cursor:pointer; <?= $trxPill ?>">
@@ -322,103 +328,107 @@ if (isset($conn) && $conn !== false) {
                             <option value="QTY"   <?= $activeSortBy === 'QTY'   ? 'selected' : '' ?>>Sort: Items</option>
                         </select>
 
-                        <button onclick="toggleTrxOrder('<?= $activeSortOrder ?>')" style="width:150px; cursor:pointer; font-weight:700; color:var(--primary-color); <?= $trxPill ?>">
-                            <?= $activeSortOrder === 'ASC' ? 'Ascending ↑' : 'Descending ↓' ?>
+                        <button id="btnSortOrder" class="sort-btn" onclick="toggleTrxOrder()" title="Change Ascending/Descending">
+                            <svg id="trxSortIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="<?= $activeSortOrder === 'ASC' ? 'M12 19V5M5 12l7-7 7 7' : 'M12 5v14M19 12l-7 7-7-7' ?>"/>
+                            </svg>
                         </button>
                     </div>
 
                     <input type="text" placeholder="Search username or Order ID..." value="<?= htmlspecialchars($activeSearch) ?>" oninput="onSearchInput(this.value)" style="width:100%; box-sizing:border-box; <?= $trxPill ?>">
                 </div>
 
-                <table class="styled-table">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>Customer</th>
-                            <th>Products</th>
-                            <th>Date</th>
-                            <th>Payment Method</th>
-                            <th>Items</th>
-                            <th>Total</th>
-                            <th>Status</th>
-                            <th style="text-align:center;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($stmt_trx)): ?>
-                            <?php
-                                $limit = 10;
-                                $no    = (($page - 1) * $limit) + 1;
-                            ?>
-                            <?php foreach ($stmt_trx as $row): ?>
-                                <?php $s = (int)$row['status_penjualan']; ?>
-                                <tr>
-                                    <td><?= $no++ ?></td>
-                                    <td>
-                                        <div style="font-weight:600;font-size:.85rem;"><?= htmlspecialchars($row['username'] ?? '-') ?></div>
-                                        <div style="font-size:.73rem;opacity:.5;"><?= htmlspecialchars($row['email'] ?? '') ?></div>
-                                    </td>
-                                    <td>
-                                        <div style="max-width:240px; font-size:.78rem; opacity:.85; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="<?= htmlspecialchars($row['daftar_produk'] ?? '') ?>">
-                                            <?= htmlspecialchars($row['daftar_produk'] ?? '') ?: '-' ?>
-                                        </div>
-                                    </td>
-                                    <td style="white-space:nowrap;font-size:.82rem;"><?= htmlspecialchars($row['tanggal_penjualan'] ?? '-') ?></td>
-                                    <td style="font-size:.8rem;">
-                                        <?= htmlspecialchars($row['nama_metode'] ?? '-') ?>
-                                        <?php if (!empty($row['provider'])): ?>
-                                            <span style="opacity:.5;"> · <?= htmlspecialchars($row['provider']) ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="text-align:right;"><?= (int)$row['total_barang'] ?></td>
-                                    <td style="text-align:right;font-weight:700;white-space:nowrap;">Rp <?= htmlspecialchars($row['total_harga']) ?></td>
-                                    <td>
-                                        <span style="display:inline-block; padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:700; background:<?= $STATUS_COLOR[$s]['bg'] ?? '#f3f4f6' ?>; color:<?= $STATUS_COLOR[$s]['color'] ?? '#555' ?>; white-space:nowrap;">
-                                            <?= $STATUS_LABEL[$s] ?? 'Unknown' ?>
-                                        </span>
-                                    </td>
-                                    <td style="text-align:center;">
-                                        <div class="btn-action-group" style="justify-content:center;">
-                                            <button class="btn-view-icon" title="View detail" onclick="openDetailModal(<?= (int)$row['id_penjualan'] ?>)">...</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr><td colspan="9" style="text-align:center;padding:2rem 0;opacity:.5;">No transactions found.</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                <div id="tableContainer">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Customer</th>
+                                <th>Products</th>
+                                <th>Date</th>
+                                <th>Payment Method</th>
+                                <th>Items</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th style="text-align:center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($stmt_trx)): ?>
+                                <?php
+                                    $limit = 10;
+                                    $no    = (($page - 1) * $limit) + 1;
+                                ?>
+                                <?php foreach ($stmt_trx as $row): ?>
+                                    <?php $s = (int)$row['status_penjualan']; ?>
+                                    <tr>
+                                        <td><?= $no++ ?></td>
+                                        <td>
+                                            <div style="font-weight:600;font-size:.85rem;"><?= htmlspecialchars($row['username'] ?? '-') ?></div>
+                                            <div style="font-size:.73rem;opacity:.5;"><?= htmlspecialchars($row['email'] ?? '') ?></div>
+                                        </td>
+                                        <td>
+                                            <div style="max-width:240px; font-size:.78rem; opacity:.85; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="<?= htmlspecialchars($row['daftar_produk'] ?? '') ?>">
+                                                <?= htmlspecialchars($row['daftar_produk'] ?? '') ?: '-' ?>
+                                            </div>
+                                        </td>
+                                        <td style="white-space:nowrap;font-size:.82rem;"><?= htmlspecialchars($row['tanggal_penjualan'] ?? '-') ?></td>
+                                        <td style="font-size:.8rem;">
+                                            <?= htmlspecialchars($row['nama_metode'] ?? '-') ?>
+                                            <?php if (!empty($row['provider'])): ?>
+                                                <span style="opacity:.5;"> · <?= htmlspecialchars($row['provider']) ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="text-align:right;"><?= (int)$row['total_barang'] ?></td>
+                                        <td style="text-align:right;font-weight:700;white-space:nowrap;">Rp <?= number_format((float)$row['total_harga'], 0, ',', '.') ?></td>
+                                        <td>
+                                            <span style="display:inline-block; padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:700; background:<?= $STATUS_COLOR[$s]['bg'] ?? '#f3f4f6' ?>; color:<?= $STATUS_COLOR[$s]['color'] ?? '#555' ?>; white-space:nowrap;">
+                                                <?= $STATUS_LABEL[$s] ?? 'Unknown' ?>
+                                            </span>
+                                        </td>
+                                        <td style="text-align:center;">
+                                            <div class="btn-action-group" style="justify-content:center;">
+                                                <button class="btn-view-icon" title="View detail" onclick="openDetailModal(<?= (int)$row['id_penjualan'] ?>)">...</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr><td colspan="9" style="text-align:center;padding:2rem 0;opacity:.5;">No transactions found.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
 
-                <div class="pagination-container">
-                    <?php
-                    $baseUrl = '?type=sales&status=' . urlencode($activeStatus ?? '') . '&search=' . urlencode($activeSearch) . '&sort_by=' . urlencode($activeSortBy) . '&sort_order=' . urlencode($activeSortOrder);
-                    ?>
-                    <?php if ($page > 1): ?>
-                        <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>" class="page-link">&lt;</a>
-                    <?php else: ?>
-                        <span class="page-link disabled">&lt;</span>
-                    <?php endif; ?>
-                    <?php
-                    $start = max(1, $page - 1);
-                    $end   = min($total_pages, $page + 1);
-                    if ($start > 1):
-                    ?>
-                        <a href="<?= $baseUrl ?>&page=1" class="page-link <?= $page == 1 ? 'active' : '' ?>">1</a>
-                        <?php if ($start > 2): ?><span class="dots">...</span><?php endif; ?>
-                    <?php endif; ?>
-                    <?php for ($i = $start; $i <= $end; $i++): ?>
-                        <a href="<?= $baseUrl ?>&page=<?= $i ?>" class="page-link <?= $i == $page ? 'active' : '' ?>"><?= $i ?></a>
-                    <?php endfor; ?>
-                    <?php if ($end < $total_pages): ?>
-                        <?php if ($end < $total_pages - 1): ?><span class="dots">...</span><?php endif; ?>
-                        <a href="<?= $baseUrl ?>&page=<?= $total_pages ?>" class="page-link <?= $page == $total_pages ? 'active' : '' ?>"><?= $total_pages ?></a>
-                    <?php endif; ?>
-                    <?php if ($page < $total_pages): ?>
-                        <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>" class="page-link">&gt;</a>
-                    <?php else: ?>
-                        <span class="page-link disabled">&gt;</span>
-                    <?php endif; ?>
+                    <div class="pagination-container">
+                        <?php
+                        $baseUrl = '?type=sales&status=' . urlencode($activeStatus ?? '') . '&search=' . urlencode($activeSearch) . '&sort_by=' . urlencode($activeSortBy) . '&sort_order=' . urlencode($activeSortOrder);
+                        ?>
+                        <?php if ($page > 1): ?>
+                            <a href="<?= $baseUrl ?>&page=<?= $page - 1 ?>" class="page-link">&lt;</a>
+                        <?php else: ?>
+                            <span class="page-link disabled">&lt;</span>
+                        <?php endif; ?>
+                        <?php
+                        $start = max(1, $page - 1);
+                        $end   = min($total_pages, $page + 1);
+                        if ($start > 1):
+                        ?>
+                            <a href="<?= $baseUrl ?>&page=1" class="page-link <?= $page == 1 ? 'active' : '' ?>">1</a>
+                            <?php if ($start > 2): ?><span class="dots">...</span><?php endif; ?>
+                        <?php endif; ?>
+                        <?php for ($i = $start; $i <= $end; $i++): ?>
+                            <a href="<?= $baseUrl ?>&page=<?= $i ?>" class="page-link <?= $i == $page ? 'active' : '' ?>"><?= $i ?></a>
+                        <?php endfor; ?>
+                        <?php if ($end < $total_pages): ?>
+                            <?php if ($end < $total_pages - 1): ?><span class="dots">...</span><?php endif; ?>
+                            <a href="<?= $baseUrl ?>&page=<?= $total_pages ?>" class="page-link <?= $page == $total_pages ? 'active' : '' ?>"><?= $total_pages ?></a>
+                        <?php endif; ?>
+                        <?php if ($page < $total_pages): ?>
+                            <a href="<?= $baseUrl ?>&page=<?= $page + 1 ?>" class="page-link">&gt;</a>
+                        <?php else: ?>
+                            <span class="page-link disabled">&gt;</span>
+                        <?php endif; ?>
+                    </div>
                 </div>
 
             <?php endif; ?>
@@ -446,9 +456,8 @@ if (isset($conn) && $conn !== false) {
     <script>
         // Master Payment Method hanya tampil untuk Owner (role 3).
         (function () {
-            var role = parseInt(sessionStorage.getItem('role') || localStorage.getItem('role') || 0);
             var card = document.getElementById('ownerMetodeCard');
-            if (card && role === 3) card.style.display = '';
+            if (card && CardHavenAuth.role() === 3) card.style.display = '';
         })();
     </script>
 </body>

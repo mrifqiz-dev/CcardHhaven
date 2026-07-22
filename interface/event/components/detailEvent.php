@@ -188,7 +188,7 @@ function escHtml($str) {
                 <div class="ee-field">
                     <label class="ee-label">End Date <span class="ee-required">*</span></label>
                     <input id="ee_tanggal_berakhir" type="date" class="ee-input"
-                        value="<?= escHtml($event['tanggal_berakhir'] ?? '') ?>">
+                        value="<?= escHtml($event['tanggal_berakhir'] ?? '') ?>" onchange="eeOnEndDateChange()">
                     <span class="ee-error" id="ee_err_tanggal_berakhir"></span>
                 </div>
 
@@ -231,7 +231,11 @@ function escHtml($str) {
 
             <div class="ee-product-search-wrap">
                 <div class="ee-field" style="flex:1; margin-bottom:0;">
-                    <label class="ee-label">Search Product</label>
+                    <label class="ee-label" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>Search Product</span>
+                        <button type="button" onclick="eeStartAddProduct(<?= (int)$id ?>)" title="Create a brand-new product, then come back here"
+                            style="background:none; border:none; color:var(--primary-color,#173C99); font-weight:700; font-size:0.72rem; cursor:pointer; padding:0;">+ New Product</button>
+                    </label>
                     <input id="ee_search_produk" type="text" class="ee-input" placeholder="Type product name..."
                         oninput="eeDebounceSearch()" autocomplete="off">
                     <div id="ee_search_results" class="ee-search-dropdown"></div>

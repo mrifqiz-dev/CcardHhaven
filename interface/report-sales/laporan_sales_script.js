@@ -1,6 +1,6 @@
 const REPORT_CONTROLLER = '/cardhaven/interface/report-sales/controller_laporan_sales.php';
-const idPengguna = sessionStorage.getItem('id_pengguna') || localStorage.getItem('id_pengguna');
-const userRole = sessionStorage.getItem('role') || localStorage.getItem('role');
+const idPengguna = CardHavenAuth.id() || null;
+const userRole = CardHavenAuth.role();
 
 let allData = [];         
 let filteredData = [];    
@@ -50,7 +50,10 @@ function changeSortCriterion() {
 
 function toggleSortOrder() {
     currentSortOrder = currentSortOrder === 'DESC' ? 'ASC' : 'DESC';
-    document.getElementById('btnSortOrder').innerHTML = currentSortOrder === 'DESC' ? 'Descending ↓' : 'Ascending ↑';
+    const _icon = document.getElementById('sortOrderIcon');
+    if (_icon) _icon.innerHTML = currentSortOrder === 'ASC'
+        ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+        : '<path d="M12 5v14M19 12l-7 7-7-7"/>';
     applyFilterAndSort();
 }
 
@@ -143,7 +146,7 @@ function renderTable() {
             <td style="text-align:center;">${startNo++}</td>
             <td style="white-space:nowrap;">${tanggal}</td>
             <td style="font-weight:600;">${row.nama_customer}</td>
-            <td><div class="card-list-cell">${row.daftar_produk || '-'}</div></td>
+            <td><div class="card-list-cell" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.daftar_produk || '-'}</div></td>
             <td style="text-align:center;">${row.nama_metode || '-'}</td>
             <td style="text-align:right; font-weight:600; padding-right: 1rem;">${row.total_barang} Pcs</td>
             <td style="text-align:right; font-weight:700; padding-right: 1rem;">Rp ${parseInt(row.total_harga).toLocaleString('id-ID')}</td>

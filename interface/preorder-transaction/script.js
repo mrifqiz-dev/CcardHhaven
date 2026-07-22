@@ -8,7 +8,7 @@ var preorderEvent          = null;
 var preorderProduct        = null; 
 var preorderQty            = 0;
 var preorderAlreadyBought  = 0;
-var preorderIdPengguna     = localStorage.getItem('id_pengguna') || sessionStorage.getItem('id_pengguna');
+var preorderIdPengguna     = CardHavenAuth.id() || null;
 
 /* ─────────────────────────────────────────────
    OPEN / CLOSE
@@ -63,7 +63,7 @@ window.preorderSwitchToOrder = function() {
         renderPreOrderControls();
         document.getElementById('preorder-order-img').src = preorderProduct.foto
             ? '/cardhaven/assets/image/products/' + preorderProduct.foto
-            : '/cardhaven/image-profile/defaultProduct.jpg';
+            : '/cardhaven/assets/image/image-profile/defaultProduct.jpg';
     });
     
     document.getElementById('preorder-view-detail').style.display = 'none';
@@ -103,7 +103,7 @@ function renderPreOrderDetail() {
     document.getElementById('preorder-event-name').textContent = e.nama_event;
     document.getElementById('preorder-detail-img').src = p.foto
         ? ('/cardhaven/assets/image/products/' + p.foto)
-        : '/cardhaven/image-profile/defaultProduct.jpg';
+        : '/cardhaven/assets/image/image-profile/defaultProduct.jpg';
 
     document.getElementById('preorder-product-badge').textContent = p.nama_produk;
     document.getElementById('preorder-stok').textContent          = e.maks_pembelian;

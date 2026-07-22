@@ -39,6 +39,12 @@ $baseUrl = '/CardHaven';
                 <img id="ui-event-image" src="" style="position: absolute; z-index: 1; transform: translateX(-1.5rem) translateY(2.5rem) scale(0.92);">
                 <!-- <img src="<?= $baseUrl ?>/assets/image/garis-belakang.png" style="position: absolute; z-index: 0; width: 65.5%; height: 62%; transform: translateX(-3rem) translateY(-6.75rem);"> -->
             </div>
+
+            <!-- Empty state: muncul kalau tidak ada preorder event (di-toggle oleh script.js) -->
+            <div class="hero-empty" id="heroEmpty" style="display: none; width: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 2rem;">
+                <img src="/cardhaven/assets/image/empty-state.png" alt="No preorder event" style="width: 180px; height: auto; image-rendering: pixelated;">
+                <p style="color: var(--paragraf, #4d4d4d); font-size: 1.25rem; font-weight: 600;">Preorder is currently unavailable</p>
+            </div>
         </div>
         
         <div class="bottom-bar">
@@ -53,11 +59,11 @@ $baseUrl = '/CardHaven';
     <div class="promo" id="promo-section">
         <div class="promo-header">
             <h3 class="coolveticaa">Promo🔥</h3>
-            <div style="width: 25%;">
+            <!-- <div style="width: 25%;">
                 <select name="" class="modal-input">
                     <option value="">-- Select Game --</option>
                 </select>
-            </div>
+            </div> -->
         </div>
         <div class="promo-content"></div>
         <div class="promo-pagination">
@@ -108,19 +114,25 @@ $baseUrl = '/CardHaven';
                 </div>
                 <div>
                     <label style="color: var(--primary-color); font-weight: 600; font-size: 0.9rem;">Product Type</label>
-                    <select id="homeProductType" style="width: 100%; height: 2.5rem; border: 1px solid var(--primary-color); border-radius: 9999px; padding: 0 15px; outline: none; color: var(--primary-color); background: white; margin-top: 5px; box-sizing: border-box; cursor: pointer;">
+                    <select id="homeProductType" style="width: 100%; height: 2.5rem; border: 1px solid var(--primary-color); border-radius: 9999px; padding: 0 36px 0 15px; outline: none; color: var(--primary-color); background-color: white; margin-top: 5px; box-sizing: border-box; cursor: pointer;">
                         <option value="">All Types</option>
                         <option value="Single card">Single card</option>
                         <option value="Booster pack">Booster pack</option>
                         <option value="Booster box">Booster box</option>
                         <option value="Sleeve">Sleeve</option>
                         <option value="Playmat">Playmat</option>
+                        <option value="Binder">Binder</option>
+                        <option value="Deck box">Deck box</option>
+                        <option value="Accessory">Accessory</option>
+                        <option value="Card Protector">Card Protector</option>
                         <option value="Toploader">Toploader</option>
+                        <option value="Storage Box">Storage Box</option>
+                        <option value="Other">Other</option>
                     </select>
                 </div>
                 <div>
                     <label style="color: var(--primary-color); font-weight: 600; font-size: 0.9rem;">Game Name</label>
-                    <select id="homeGameName" style="width: 100%; height: 2.5rem; border: 1px solid var(--primary-color); border-radius: 9999px; padding: 0 15px; outline: none; color: var(--primary-color); background: white; margin-top: 5px; box-sizing: border-box; cursor: pointer;">
+                    <select id="homeGameName" style="width: 100%; height: 2.5rem; border: 1px solid var(--primary-color); border-radius: 9999px; padding: 0 36px 0 15px; outline: none; color: var(--primary-color); background-color: white; margin-top: 5px; box-sizing: border-box; cursor: pointer;">
                         <option value="">All Games</option>
                         <!-- Opsi Game Akan Diisi Otomatis oleh JS -->
                     </select>

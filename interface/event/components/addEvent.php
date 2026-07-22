@@ -1,6 +1,6 @@
 <div class="add-event-card">
-    <div style="display: flex;">
-        <div>
+    <div class="ae-body-split">
+        <div class="ae-form-col">
             <div class="ae-header">
                 <span class="ae-title-black">ADD</span>
                 <span class="ae-title-blue"> Event</span>
@@ -33,7 +33,7 @@
                 
                 <div class="ae-field">
                     <label class="ae-label">End Date <span class="ae-required">*</span></label>
-                    <input id="ae_tanggal_berakhir" type="date" class="ae-input">
+                    <input id="ae_tanggal_berakhir" type="date" class="ae-input" onchange="aeOnEndDateChange()">
                     <span class="ae-error" id="err_tanggal_berakhir"></span>
                 </div>
                 
@@ -62,7 +62,11 @@
             
             <div class="ae-product-search-wrap">
                 <div class="ae-field" style="flex:1; margin-bottom:0;">
-                    <label class="ae-label">Search Product</label>
+                    <label class="ae-label" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>Search Product</span>
+                        <button type="button" onclick="aeStartAddProduct()" title="Create a brand-new product, then come back here"
+                            style="background:none; border:none; color:var(--primary-color,#173C99); font-weight:700; font-size:0.72rem; cursor:pointer; padding:0;">+ New Product</button>
+                    </label>
                     <input id="ae_search_produk" type="text" class="ae-input" placeholder="Type product name..."
                     oninput="aeDebounceSearch()" autocomplete="off">
                     <div id="ae_search_results" class="ae-search-dropdown"></div>
@@ -92,8 +96,8 @@
             </div>
         </div>
 
-        <div style=" display: flex; align-items: center;">
-            <div id="ae_product_table_wrap" style="display:none; height: 13rem; overflow-y: auto;">
+        <div class="ae-table-col">
+            <div id="ae_product_table_wrap" style="display:none;">
                 <table class="ae-product-table">
                     <thead>
                         <tr>
@@ -133,6 +137,29 @@
 
 .ae-title-black { color: #1a1a1a; }
 .ae-title-blue  { color: #1284ff; }
+
+/* ── layout 2 kolom: form (kiri) + tabel produk (kanan) ── */
+.ae-body-split {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+.ae-form-col { width: 460px; flex: 0 0 460px; min-width: 0; }
+.ae-table-col {
+    flex: 0 1 400px;
+    min-width: 0;
+    margin-top: 58px;   /* sejajar dengan baris field pertama (di bawah judul) */
+}
+#ae_product_table_wrap {
+    max-height: 13rem;
+    overflow-y: auto;
+    border: 1px solid #eef2f8;
+    border-radius: 12px;
+}
+@media screen and (max-width: 768px) {
+    .ae-body-split { flex-direction: column; gap: 12px; }
+    .ae-table-col  { flex: 1 1 auto; width: 100%; margin-top: 0; }
+}
 
 .ae-grid-2 {
     display: grid;
