@@ -97,6 +97,7 @@ const ADD_VIEW_URL = '/cardhaven/interface/event/components/addEvent.php';
 const ADD_API_URL  = '/cardhaven/interface/event/controller/controllerAdd.php';
 const SEARCH_URL   = '/cardhaven/interface/event/apiFetch.php';
 const EDIT_URL     = '/cardhaven/interface/event/controller/controllerEdit.php';
+const EDIT_BANNER_URL = '/cardhaven/interface/event/controller/controllerEventBanner.php';
 const FINISH_URL   = '/cardhaven/interface/event/controller/controller_complete_event.php';
 const DELETE_URL   = '/cardhaven/interface/event/controller/controllerDeleteEvent.php';
 const TOGGLE_URL   = '/cardhaven/interface/event/controller/controllerToggle.php';
@@ -163,6 +164,45 @@ function _aeForceClose() {
     document.getElementById('eventModal').classList.remove('show');
     document.getElementById('eventModalBody').innerHTML = '';
     document.body.style.overflow = '';
+}
+
+// ── Banner upload (Add Event) ─────────────────────────────────────────────────
+function aePreviewBanner(input) {
+    const errEl   = document.getElementById('err_banner');
+    if (errEl) errEl.textContent = '';
+    const drop    = document.getElementById('ae_banner_drop');
+    const preview = document.getElementById('ae_banner_preview');
+    const file    = input.files && input.files[0];
+    if (!file) return;
+
+    const okTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!okTypes.includes(file.type)) {
+        if (errEl) errEl.textContent = 'Banner must be a JPG, PNG, or WEBP image.';
+        input.value = '';
+        return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+        if (errEl) errEl.textContent = 'Banner is too large (max 3 MB).';
+        input.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        if (preview) preview.src = e.target.result;
+        if (drop)    drop.classList.add('has-img');
+    };
+    reader.readAsDataURL(file);
+}
+
+function aeRemoveBanner(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    const input   = document.getElementById('ae_banner_input');
+    const preview = document.getElementById('ae_banner_preview');
+    const drop    = document.getElementById('ae_banner_drop');
+    if (input)   input.value = '';
+    if (preview) preview.src = '';
+    if (drop)    drop.classList.remove('has-img');
 }
 
 // ── "Add New Product" shortcut (Add Event) ────────────────────────────────────
@@ -572,28 +612,36 @@ async function aeSubmitEvent() {
     // 4. Bandingkan secara matematis (Date object)
     const statusEvent = (eventDate > todayDate) ? 2 : 1;
 
-    const payload = {
-        nama_event:       nama,
-        tipe_event:       tipe,
-        tanggal_mulai:    mulai,
-        tanggal_berakhir: berakhir,
-        tanggal_sampai:   sampai || null,
-        persen_diskon:    parseFloat(diskon),
-        maks_pembelian:   parseInt(maks, 10),
-        status_event:     statusEvent, // <-- Lempar status ke PHP
-        id_karyawan:      CardHavenAuth.id() || null,
-        products: aeProductList.map(p => ({
-            id_produk:   p.id_produk,
-            harga_event: Math.round(((100 - parseFloat(diskon)) * p.harga_jual) / 100),
-            stok_event:  p.stok_event
-        }))
-    };
-    
+    const products = aeProductList.map(p => ({
+        id_produk:   p.id_produk,
+        harga_event: Math.round(((100 - parseFloat(diskon)) * p.harga_jual) / 100),
+        stok_event:  p.stok_event
+    }));
+
+    // FormData supaya bisa membawa file banner sekaligus. products dikirim sebagai
+    // string JSON, di-decode lagi di controllerAdd.php.
+    const fd = new FormData();
+    fd.append('nama_event',       nama);
+    fd.append('tipe_event',       tipe);
+    fd.append('tanggal_mulai',    mulai);
+    fd.append('tanggal_berakhir', berakhir);
+    fd.append('tanggal_sampai',   sampai || '');
+    fd.append('persen_diskon',    parseFloat(diskon));
+    fd.append('maks_pembelian',   parseInt(maks, 10));
+    fd.append('status_event',     statusEvent);
+    fd.append('id_karyawan',      CardHavenAuth.id() || '');
+    fd.append('products',         JSON.stringify(products));
+
+    const bannerInput = document.getElementById('ae_banner_input');
+    if (bannerInput && bannerInput.files && bannerInput.files[0]) {
+        fd.append('banner', bannerInput.files[0]);
+    }
+
     try {
+        // Tidak set Content-Type manual — browser mengatur multipart boundary otomatis.
         const res = await fetch(ADD_API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: fd
         });
         const data = await res.json();
 
@@ -966,6 +1014,69 @@ function eeRemoveProductFromEvent(idProdukEvent) {
     );
 }
 
+// ── Banner upload (Edit Event) ────────────────────────────────────────────────
+function eePreviewBanner(input) {
+    const errEl   = document.getElementById('ee_err_banner');
+    if (errEl) errEl.textContent = '';
+    const drop    = document.getElementById('ee_banner_drop');
+    const preview = document.getElementById('ee_banner_preview');
+    const flag    = document.getElementById('ee_banner_remove_flag');
+    const file    = input.files && input.files[0];
+    if (!file) return;
+
+    const okTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!okTypes.includes(file.type)) {
+        if (errEl) errEl.textContent = 'Banner must be a JPG, PNG, or WEBP image.';
+        input.value = '';
+        return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+        if (errEl) errEl.textContent = 'Banner is too large (max 3 MB).';
+        input.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        if (preview) preview.src = e.target.result;
+        if (drop)    drop.classList.add('has-img');
+    };
+    reader.readAsDataURL(file);
+    if (flag) flag.value = '0'; // upload baru membatalkan niat hapus
+}
+
+function eeRemoveBanner(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    const input   = document.getElementById('ee_banner_input');
+    const preview = document.getElementById('ee_banner_preview');
+    const drop    = document.getElementById('ee_banner_drop');
+    const flag    = document.getElementById('ee_banner_remove_flag');
+    if (input)   input.value = '';
+    if (preview) preview.src = '';
+    if (drop)    drop.classList.remove('has-img');
+    if (flag)    flag.value = '1'; // tandai untuk dihapus saat Save Changes
+}
+
+// Kirim perubahan banner (upload baru / hapus) ke server. No-op kalau tak berubah.
+async function eeSaveBanner(idEvent) {
+    const input      = document.getElementById('ee_banner_input');
+    const removeFlag = document.getElementById('ee_banner_remove_flag');
+    const hasNewFile = input && input.files && input.files[0];
+    const wantRemove = removeFlag && removeFlag.value === '1';
+    if (!hasNewFile && !wantRemove) return;
+
+    const fd = new FormData();
+    fd.append('id_event', idEvent);
+    if (hasNewFile)      fd.append('banner', input.files[0]);
+    else if (wantRemove) fd.append('remove', '1');
+
+    try {
+        await fetch(EDIT_BANNER_URL, { method: 'POST', body: fd });
+    } catch (e) {
+        console.error('[EE Banner]', e);
+    }
+}
+
 async function eeSubmitEvent(idEvent) {
     eeClearErrors();
 
@@ -1006,6 +1117,8 @@ async function eeSubmitEvent(idEvent) {
         const data = await eePost('save_event', payload);
 
         if (data.success) {
+            // Simpan/hapus banner (kalau ada perubahan) sebelum reload.
+            await eeSaveBanner(idEvent);
             Swal.fire({
                 icon: "success",
                 title: "Completed",
